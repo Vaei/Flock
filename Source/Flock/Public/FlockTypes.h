@@ -93,14 +93,23 @@ struct FFlockClipRange
 
 	int32 StartFrame = 0;
 	int32 EndFrame = 0;
+
+	/** Which baked animation this came from. Names a column of the pose match table. */
+	int32 AnimationIndex = INDEX_NONE;
+
 	bool bLoop = true;
 
-	/** Enter at a random point rather than the first frame, so a settled flock does not move in unison. */
+	/**
+	 * Enter at a random point rather than the first frame, so a settled flock does not move in unison.
+	 *
+	 * Only honoured where a flock wants desynchronising: the first idle after spawning, and the first after
+	 * coming down. Re-entering a clip part way through a bird's life keeps continuity instead.
+	 */
 	bool bRandomStartPhase = false;
 
 	/**
-	 * Play to the end of a cycle before allowing another clip in. VAT has no blending, so every clip change
-	 * is an instant pose jump; a clip swapped out halfway visibly snaps.
+	 * Play to the end of a cycle before allowing another clip in. A clip change is a pose jump unless the
+	 * pose match table softens it, and a clip swapped out halfway is the worst of them.
 	 */
 	bool bMustComplete = false;
 

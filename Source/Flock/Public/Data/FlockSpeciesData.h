@@ -226,9 +226,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock")
 	TArray<TSoftObjectPtr<USoundBase>> LandOneShots;
 
+	/**
+	 * Blend between the two frames either side of where a clip has reached, instead of snapping to the
+	 * nearer one.
+	 *
+	 * Only does anything if this bird's material reads the third custom data float. That blend costs a
+	 * second set of bone texture fetches in the vertex shader, so the material decides whether it is willing
+	 * to pay and this decides which birds ask.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock")
+	bool bInterpolateFrames = false;
+
+	/** Furthest tier that still interpolates. Past it a bird asks for whole frames and the shader skips it. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(EditCondition="bInterpolateFrames"))
+	EFlockLODTier InterpolateMaxTier = EFlockLODTier::Mid;
+
 	/** Used for the screen-size estimate that drives LOD. Roughly the bird's radius in world units. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="1.0"))
 	float BoundsRadius = 30.f;
+
+	/**
+	 * For every baked frame, which frame of each baked animation is the closest pose to it.
+	 *
+	 * Built by the bake, read once per clip change, and the reason a looping clip does not open on a pose
+	 * unrelated to the one it replaced. Empty means every clip opens on its first frame.
+	 */
+	UPROPERTY()
+	TArray<uint16> PoseMatchTable;
+
+	/** Rows in the table, one per baked frame. Zero when there is none. */
+	UPROPERTY(VisibleAnywhere, Category="Pose Matching")
+	int32 PoseMatchNumFrames = 0;
+
+	/** Columns in the table, one per baked animation. */
+	UPROPERTY(VisibleAnywhere, Category="Pose Matching")
+	int32 PoseMatchNumAnimations = 0;
 
 #if WITH_EDITORONLY_DATA
 	/**

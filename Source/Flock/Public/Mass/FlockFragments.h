@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Debug/FlockDebug.h"
 #include "FlockTypes.h"
 #include "Mass/EntityElementTypes.h"
 #include "FlockFragments.generated.h"
@@ -117,6 +118,12 @@ struct FFlockAnimFragment : public FMassFragment
 
 	/** What gets written to per-instance custom data. Maps straight onto the baked frame index. */
 	float Frame = 0.f;
+
+	/**
+	 * The frame after the one being played, for a material that blends between them. Equal to Frame, with no
+	 * fraction on either, whenever this bird is not interpolating.
+	 */
+	float NextFrame = 0.f;
 };
 
 USTRUCT()
@@ -171,8 +178,25 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 	/** Roughly the bird's radius, for the screen-size estimate that drives LOD. */
 	float BoundsRadius = 30.f;
 
+	/** Ask for two frames and a blend weight rather than one frame. Only useful with a material that reads it. */
+	bool bInterpolateFrames = false;
+
+	/** Furthest tier that still asks. Past it the bird asks for whole frames and the shader can skip the work. */
+	EFlockLODTier InterpolateMaxTier = EFlockLODTier::Mid;
+
 	/** Index back into the subsystem's species array, for the rare case something needs the asset. */
 	int32 SpeciesIndex = INDEX_NONE;
+
+	/**
+	 * For every baked frame, the frame of each baked animation whose pose is closest to it. Null when the
+	 * species has no table, which means clips open on their first frame.
+	 *
+	 * Points into the species asset. The subsystem holds that for as long as any bird of it exists, and
+	 * nothing writes the table outside a bake.
+	 */
+	const uint16* PoseMatch = nullptr;
+	int32 PoseMatchNumFrames = 0;
+	int32 PoseMatchStride = 0;
 
 	const FFlockClipRange& GetClip(EFlockClip Clip) const
 	{
@@ -237,6 +261,53 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 	{
 		const float Rate = GetClipFrameRate(Range, BirdPlayRate);
 		return Rate > 0.f ? Range.NumFrames() / Rate : 0.f;
+	}
+
+	bool CanPoseMatch() const
+	{
+		return PoseMatch != nullptr && FLOCK_POSEMATCH_OVERRIDE() != 0;
+	}
+
+	/**
+	 * Begins a clip and decides which of its frames to begin on. The one place a bird changes clip.
+	 *
+	 * Nothing blends one baked pose into another, so the frame a clip opens on is all that stands between a
+	 * change of clip and a visible snap. Where the species has a pose match table, a looping clip opens on
+	 * whichever of its frames is closest to the pose being left. A one-shot always opens on its first frame:
+	 * entering a launch or a touchdown part way through would cut off the half that makes it read.
+	 *
+	 * bAllowRandomPhase is for the two entries that want a flock scattered rather than a pose held: the
+	 * first idle after spawning, and the first after coming down together.
+	 */
+	void StartClip(FFlockAnimFragment& Anim, EFlockClip NewClip, float Now, uint8 Seed,
+		bool bAllowRandomPhase = false) const
+	{
+		const FFlockClipRange& Range = GetClip(NewClip);
+		if (!Range.bValid)
+		{
+			return;
+		}
+
+		// Read before the clip changes: this is the frame of the pose currently on screen.
+		const int32 LeavingFrame = FMath::RoundToInt(Anim.Frame);
+		Anim.Clip = NewClip;
+
+		float Offset = 0.f;
+		if (Range.bLoop && CanPoseMatch()
+			&& Range.AnimationIndex >= 0 && Range.AnimationIndex < PoseMatchStride
+			&& LeavingFrame >= 0 && LeavingFrame < PoseMatchNumFrames)
+		{
+			const int32 Entry = PoseMatch[LeavingFrame * PoseMatchStride + Range.AnimationIndex];
+			Offset = FMath::Clamp(static_cast<float>(Entry - Range.StartFrame), 0.f,
+				static_cast<float>(Range.NumFrames() - 1));
+		}
+		else if (bAllowRandomPhase && Range.bRandomStartPhase)
+		{
+			Offset = (Seed / 255.f) * Range.NumFrames();
+		}
+
+		const float Rate = GetClipFrameRate(Range, Anim.PlayRate);
+		Anim.ClipStartTime = Rate > 0.f ? Now - Offset / Rate : Now;
 	}
 
 	/**

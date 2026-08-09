@@ -235,7 +235,7 @@ namespace FlockProcessorPrivate
 	 * unmapped falls back to Fly and a species with neither never changes clip here.
 	 */
 	static void SelectFlightClip(const FFlockSpeciesConfigFragment& Config, const FFlockFlightParams& F,
-		FFlockAnimFragment& Anim, float Now, float YawRate, bool bTurningRight, float DescentRate)
+		FFlockAnimFragment& Anim, float Now, uint8 Seed, float YawRate, bool bTurningRight, float DescentRate)
 	{
 		const EFlockClip Current = Anim.Clip;
 		const bool bBanking = Current == EFlockClip::BankLeft || Current == EFlockClip::BankRight;
@@ -268,8 +268,7 @@ namespace FlockProcessorPrivate
 
 		if (Wanted != Current && Config.GetClip(Wanted).bValid && Config.CanLeaveClip(Anim, Now))
 		{
-			Anim.Clip = Wanted;
-			Anim.ClipStartTime = Now;
+			Config.StartClip(Anim, Wanted, Now, Seed);
 		}
 	}
 }
@@ -537,8 +536,9 @@ void UFlockDecisionProcessor::Execute(FMassEntityManager& EntityManager, FMassEx
 				// Deliberately no contagion: one bird choosing to move should not panic the flock.
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::TakingOff);
 
-				Anim.Clip = Config.GetClip(EFlockClip::TakeOff).bValid ? EFlockClip::TakeOff : EFlockClip::Fly;
-				Anim.ClipStartTime = Now;
+				Config.StartClip(Anim,
+					Config.GetClip(EFlockClip::TakeOff).bValid ? EFlockClip::TakeOff : EFlockClip::Fly,
+					Now, Birds[*It].RandomSeed);
 				continue;
 			}
 
@@ -562,8 +562,9 @@ void UFlockDecisionProcessor::Execute(FMassEntityManager& EntityManager, FMassEx
 
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::TakingOff);
 
-				Anim.Clip = Config.GetClip(EFlockClip::TakeOff).bValid ? EFlockClip::TakeOff : EFlockClip::Fly;
-				Anim.ClipStartTime = Now;
+				Config.StartClip(Anim,
+					Config.GetClip(EFlockClip::TakeOff).bValid ? EFlockClip::TakeOff : EFlockClip::Fly,
+					Now, Birds[*It].RandomSeed);
 				continue;
 			}
 
@@ -651,14 +652,7 @@ void UFlockDecisionProcessor::Execute(FMassEntityManager& EntityManager, FMassEx
 
 			if (Anim.Clip != Wanted)
 			{
-				Anim.Clip = Wanted;
-
-				const FFlockClipRange& Range = Config.GetClip(Wanted);
-				const float Seconds = Config.GetClipSeconds(Range, Anim.PlayRate);
-
-				Anim.ClipStartTime = Range.bRandomStartPhase
-					? Now - (Birds[*It].RandomSeed / 255.f) * Seconds
-					: Now;
+				Config.StartClip(Anim, Wanted, Now, Birds[*It].RandomSeed);
 			}
 		}
 	});
@@ -743,13 +737,7 @@ void UFlockIdleProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 				{
 					State.bWalking = false;
 
-					const FFlockClipRange& IdleRange = Config.GetClip(EFlockClip::Idle);
-					const float Seconds = Config.GetClipSeconds(IdleRange, Anim.PlayRate);
-
-					Anim.Clip = EFlockClip::Idle;
-					Anim.ClipStartTime = IdleRange.bRandomStartPhase
-						? Now - (Birds[*It].RandomSeed / 255.f) * Seconds
-						: Now;
+					Config.StartClip(Anim, EFlockClip::Idle, Now, Birds[*It].RandomSeed);
 					continue;
 				}
 
@@ -796,8 +784,7 @@ void UFlockIdleProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 				if (FMath::IsNearlyZero(State.GlanceRemaining, 0.5f) && Config.CanLeaveClip(Anim, Now))
 				{
 					State.GlanceRemaining = 0.f;
-					Anim.Clip = EFlockClip::Idle;
-					Anim.ClipStartTime = Now;
+					Config.StartClip(Anim, EFlockClip::Idle, Now, Birds[*It].RandomSeed);
 				}
 				continue;
 			}
@@ -824,8 +811,7 @@ void UFlockIdleProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 					FMath::Frac(Roll * 19.73f));
 				if (Rest != EFlockClip::Count)
 				{
-					Anim.Clip = Rest;
-					Anim.ClipStartTime = Now;
+					Config.StartClip(Anim, Rest, Now, Birds[*It].RandomSeed);
 
 					// Queued, never played from here: a processor is not guaranteed to be on the game thread,
 					// and touching an audio component from a worker crashes.
@@ -861,8 +847,7 @@ void UFlockIdleProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 					State.WalkTarget = FVector3f(Target);
 					State.bWalking = true;
 
-					Anim.Clip = EFlockClip::Walk;
-					Anim.ClipStartTime = Now;
+					Config.StartClip(Anim, EFlockClip::Walk, Now, Birds[*It].RandomSeed);
 					continue;
 				}
 			}
@@ -875,11 +860,7 @@ void UFlockIdleProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 				const EFlockClip Wanted = State.GlanceRemaining > 0.f
 					? EFlockClip::TurnLeft : EFlockClip::TurnRight;
 
-				if (Config.GetClip(Wanted).bValid)
-				{
-					Anim.Clip = Wanted;
-					Anim.ClipStartTime = Now;
-				}
+				Config.StartClip(Anim, Wanted, Now, Birds[*It].RandomSeed);
 			}
 		}
 	});
@@ -1000,8 +981,7 @@ void UFlockTakeoffProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				// it does, so this only skips the write rather than losing the transition.
 				if (Config.CanLeaveClip(Anims[*It], Now))
 				{
-					Anims[*It].Clip = EFlockClip::Fly;
-					Anims[*It].ClipStartTime = Now;
+					Config.StartClip(Anims[*It], EFlockClip::Fly, Now, Birds[*It].RandomSeed);
 				}
 			}
 		}
@@ -1144,8 +1124,8 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 
 					TargetRoll = FlockProcessorPrivate::CoordinatedBank(Speed2D, YawRate, F.BankScale);
 
-					FlockProcessorPrivate::SelectFlightClip(Config, F, Anims[*It], Now, FMath::Abs(YawRate),
-						YawRate > 0.f, -NewVelocity.Z);
+					FlockProcessorPrivate::SelectFlightClip(Config, F, Anims[*It], Now,
+						Birds[*It].RandomSeed, FMath::Abs(YawRate), YawRate > 0.f, -NewVelocity.Z);
 				}
 
 				State.BankRoll = FMath::FInterpTo(State.BankRoll, TargetRoll, Dt, F.BankInterpSpeed);
@@ -1179,8 +1159,7 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			{
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Landing);
 
-				Anims[*It].Clip = Config.GetDescentClip();
-				Anims[*It].ClipStartTime = Now;
+				Config.StartClip(Anims[*It], Config.GetDescentClip(), Now, Birds[*It].RandomSeed);
 				continue;
 			}
 
@@ -1199,8 +1178,7 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			{
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Landing);
 
-				Anims[*It].Clip = Config.GetDescentClip();
-				Anims[*It].ClipStartTime = Now;
+				Config.StartClip(Anims[*It], Config.GetDescentClip(), Now, Birds[*It].RandomSeed);
 			}
 		}
 	});
@@ -1308,13 +1286,10 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				const EFlockClip Touchdown = Config.GetClip(EFlockClip::Land).bValid
 					? EFlockClip::Land : EFlockClip::Idle;
 
-				const FFlockClipRange& TouchdownRange = Config.GetClip(Touchdown);
-				const float TouchdownSeconds = Config.GetClipSeconds(TouchdownRange, Anims[*It].PlayRate);
-
-				Anims[*It].Clip = Touchdown;
-				Anims[*It].ClipStartTime = TouchdownRange.bRandomStartPhase
-					? Now - (Birds[*It].RandomSeed / 255.f) * TouchdownSeconds
-					: Now;
+				// A flock comes down together, so this is one of the two entries that wants its birds
+				// scattered through the clip rather than holding the pose they arrived on.
+				Config.StartClip(Anims[*It], Touchdown, Now, Birds[*It].RandomSeed,
+					/*bAllowRandomPhase*/ true);
 				continue;
 			}
 
@@ -1352,6 +1327,9 @@ void UFlockAnimProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&
 	// Read so a finished one-shot knows whether the state it belongs to is still running, and so picks the
 	// bridging loop rather than Fly.
 	EntityQuery.AddRequirement<FFlockStateFragment>(EMassFragmentAccess::ReadOnly);
+
+	// Read so a bird past the interpolation tier stops asking for the frame after the one it is on.
+	EntityQuery.AddRequirement<FFlockLODFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddConstSharedRequirement<FFlockSpeciesConfigFragment>();
 }
 
@@ -1368,6 +1346,7 @@ void UFlockAnimProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 		const TArrayView<FFlockAnimFragment> Anims = Context.GetMutableFragmentView<FFlockAnimFragment>();
 		const TConstArrayView<FFlockBirdFragment> Birds = Context.GetFragmentView<FFlockBirdFragment>();
 		const TConstArrayView<FFlockStateFragment> States = Context.GetFragmentView<FFlockStateFragment>();
+		const TConstArrayView<FFlockLODFragment> LODs = Context.GetFragmentView<FFlockLODFragment>();
 
 		for (FMassExecutionContext::FEntityIterator It = Context.CreateEntityIterator(); It; ++It)
 		{
@@ -1389,14 +1368,9 @@ void UFlockAnimProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 				const EFlockClip Next = Config.GetOneShotSuccessor(Anim.Clip, States[*It].State);
 				if (Next != EFlockClip::Count && Next != Anim.Clip && Config.GetClip(Next).bValid)
 				{
-					Anim.Clip = Next;
+					Config.StartClip(Anim, Next, Now, Birds[*It].RandomSeed);
+
 					Range = &Config.GetClip(Next);
-
-					const float Seconds = Config.GetClipSeconds(*Range, Anim.PlayRate);
-					Anim.ClipStartTime = Range->bRandomStartPhase
-						? Now - (Birds[*It].RandomSeed / 255.f) * Seconds
-						: Now;
-
 					Elapsed = (Now - Anim.ClipStartTime) * Config.GetClipFrameRate(*Range, Anim.PlayRate);
 				}
 			}
@@ -1410,6 +1384,23 @@ void UFlockAnimProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 				: FMath::Clamp(Elapsed, 0.f, NumFrames - 1.f);
 
 			Anim.Frame = Range->StartFrame + Local;
+
+			if (Config.bInterpolateFrames && LODs[*It].Tier <= Config.InterpolateMaxTier)
+			{
+				const float Whole = FMath::FloorToFloat(Local);
+				const float Next = Range->bLoop
+					? FMath::Fmod(Whole + 1.f, NumFrames)
+					: FMath::Min(Whole + 1.f, NumFrames - 1.f);
+
+				Anim.NextFrame = Range->StartFrame + Next;
+			}
+			else
+			{
+				// Whole frames on both, which leaves the material a blend weight of zero and lets its branch
+				// skip the second set of bone fetches.
+				Anim.Frame = FMath::FloorToFloat(Anim.Frame);
+				Anim.NextFrame = Anim.Frame;
+			}
 		}
 	});
 }
@@ -1474,7 +1465,7 @@ void UFlockRenderProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 
 			const FTransform& Transform = Transforms[*It].GetTransform();
 			LocalSubsystem->WriteInstance(Birds[*It].FlockIndex, Render.ComponentIndex, Render.InstanceIndex,
-				Transform, Anims[*It].Frame);
+				Transform, Anims[*It].Frame, Anims[*It].NextFrame);
 
 #if UE_ENABLE_DEBUG_DRAWING
 			if (World && FLOCK_DEBUG_PERCEPTION(1))

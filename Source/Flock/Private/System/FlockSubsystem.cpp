@@ -1026,14 +1026,14 @@ bool UFlockSubsystem::AllocateRenderSlot(int32 FlockIndex, int32& OutComponentIn
 }
 
 void UFlockSubsystem::WriteInstance(int32 FlockIndex, int32 ComponentIndex, int32 InstanceIndex,
-	const FTransform& WorldTransform, float Frame)
+	const FTransform& WorldTransform, float Frame, float NextFrame)
 {
 	if (!Flocks.IsValidIndex(FlockIndex) || !Flocks[FlockIndex].bActive)
 	{
 		return;
 	}
 
-	Flocks[FlockIndex].RenderPool.WriteInstance(ComponentIndex, InstanceIndex, WorldTransform, Frame);
+	Flocks[FlockIndex].RenderPool.WriteInstance(ComponentIndex, InstanceIndex, WorldTransform, Frame, NextFrame);
 }
 
 void UFlockSubsystem::DispatchTakeOff(int32 FlockIndex, const FVector& Position)
@@ -1481,8 +1481,8 @@ void UFlockSubsystem::ResolveSlotRequests()
 			{
 				const UWorld* ClipWorld = GetWorld();
 
-				Anim->Clip = Config->GetDescentClip();
-				Anim->ClipStartTime = ClipWorld ? ClipWorld->GetTimeSeconds() : 0.f;
+				Config->StartClip(*Anim, Config->GetDescentClip(),
+					ClipWorld ? ClipWorld->GetTimeSeconds() : 0.f, Bird->RandomSeed);
 			}
 		}
 

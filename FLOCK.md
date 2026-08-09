@@ -8,6 +8,7 @@ Setup, troubleshooting basics and profiling are in [`README.md`](README.md). A w
 | [Species](#species) | one kind of bird: its baked mesh, its clips, its tuning |
 | [Baking](#baking) | making that mesh and its animation textures, and re-making them |
 | [Preview](#preview) | playing a baked clip in the viewport, without PIE |
+| [Blending](#blending) | there is none, and the two things that stand in for it |
 | [Flocks](#flocks) | the volume, where birds are placed, and what state they start in |
 | [Perches](#perches) | slots on any actor, reserved so two birds never claim one branch |
 | [Being noticed](#being-noticed) | what alarms birds, and how hard |
@@ -40,7 +41,7 @@ Setup, troubleshooting basics and profiling are in [`README.md`](README.md). A w
 
 A launch lasts **Takeoff Time**, which is not the length of a clip, so a **Take Off** that ends early hands
 over to **Take Off Loop**, or to **Fly**. One that runs *longer* than the launch plays out in full - a
-one-shot is never cut mid-pose, because VAT cannot blend.
+one-shot is never cut mid-pose. See [Blending](#blending) for what happens at the join.
 
 > [!IMPORTANT]
 > **Take Off Loop only ever plays if Takeoff Time outlasts the Take Off clip.** Below that the bird is
@@ -59,11 +60,14 @@ Each mapping:
 |---|---|
 | **Animation Index** | index into the data asset's `Animations` - the *enabled* clips, in bake order |
 | **Loop** | on for Idle, Walk, Fly and the turns; off for TakeOff, Land and rest breaks |
-| **Random Start Phase** | on for **Idle** only |
+| **Random Start Phase** | on for **Idle** only, and only honoured where a flock wants scattering: the first idle after spawning, and the first after coming down. Re-entering idle from a rest break keeps continuity instead |
 | **Play Rate** | multiplies the bird's own rate for this clip alone. Fixes one clip authored at the wrong speed, or slows a walk to match the ground speed it is driven at, without re-baking |
 | **Sounds** | played at the bird when the clip starts, one picked at random |
 | **Audio Trigger** | fired on the flock's bed when the clip starts, so a MetaSound decides what the moment sounds like |
 | **Sound Delay** | how far into the clip both land |
+
+Two more live on the species rather than per clip: **Interpolate Frames** and **Interpolate Max Tier**.
+Both are in [Blending](#blending).
 
 ### Rest breaks
 
@@ -123,11 +127,22 @@ a populated window, so pointing at a fresh species starts from what you already 
 It also sets `UVChannel = 1`, `NumDriverTriangles = 1`, moves the lightmap to UV2, and sets
 `bAutoPlay = false`.
 
+**The recipe owns the sequence list.** Prepare replaces the data asset's `AnimSequences` with the recipe's,
+so a sequence added to the data asset directly survives only until the next Prepare. It refuses rather than
+dropping one, naming what it found, because losing a sequence moves every animation index after it and the
+species' mappings then point at the wrong clips.
+
 > [!CAUTION]
 > **Every re-bake needs the material instance in Bone Material Instances**, not just the first one. The
 > instance carries its own copy of `NumFrames`, and a bake that does not update it leaves the material
 > addressing the old texture: everything past the old frame count clamps to the last row and freezes. Since
 > new clips are appended at the end, this hits exactly the clips you just added and nothing else.
+
+**Build Pose Match Table** is on by default and runs at the end of a bone bake. It re-samples every clip,
+so a bake takes roughly twice as long, and it writes about 40 KB onto the species. See
+[Blending](#blending). The Flock menu has its own **Build Pose Match Table** entry, which rebuilds it on the
+bake window's species without touching a single texture - that is the one to use after changing the
+matching weights.
 
 > [!WARNING]
 > Set `bAutoPlay` on the **data asset**, never on the material instance. The bake pushes it onto the
@@ -215,6 +230,58 @@ Dragging the **`Frame`** scalar on the material instance is the cheaper check: i
 the textures, the material and the bake are all right.
 
 Check both feature levels before trusting a bake. The vertex shader budget is tighter on ES3.1 than SM5.
+
+---
+
+## Blending
+
+**Nothing blends one baked pose into another.** A frame is a row of a texture, a clip change is a cut from
+one row to another, and playback steps in whole 30ths of a second. Two things soften that, and they are
+independent of each other.
+
+### Pose matching
+
+Baked, and free at runtime. For every frame of the bake it records which frame of each animation is the
+closest pose to it, and a bird changing to a **looping** clip opens it there rather than at its first
+frame. So a crow leaving **Fly** at the top of a wingbeat enters **Glide** with its wings already up.
+
+A **one-shot** always opens on its first frame. Entering a launch or a touchdown part way through would cut
+off the half that makes it read, which is worse than the cut it saves.
+
+| | |
+|---|---|
+| **Position Weight** | a bone being in the wrong place |
+| **Rotation Weight** | a bone facing the wrong way. Raise it on a bird whose wings barely translate |
+| **Velocity Weight** | the bones having to be moving the same way. Zero matches the shape alone, which is free to enter a wingbeat at the frame that looks right but travelling the opposite way, and that reads as a stutter rather than a cut |
+
+All three are relative: each is divided by how much that quantity typically changes over one frame of this
+bird's own animation, so the same numbers mean the same thing on a crow and on a heron.
+
+`flock.PoseMatch 0` forces every clip back to its first frame, which is what an A/B against it looks like.
+
+> [!IMPORTANT]
+> The table is measured against one bake's frame layout. A re-bake that changes the frame count or the
+> number of animations makes it stale, and it is then **ignored** rather than used wrongly. Validate Data
+> warns, and so does `LogFlock` on the first spawn. Rebuild it from the Flock menu.
+
+### Frame interpolation
+
+Not free, off by default, and it needs a material that cooperates.
+
+**Interpolate Frames** makes each bird ask for the frame after the one it is on, in the third per-instance
+custom data float, with the fraction of the way between the two left on the first. A material that reads
+that float blends them; one that does not never looks at it, so turning this on against the stock
+`MF_BoneAnimation` changes nothing at all.
+
+**Interpolate Max Tier** is how far out it is asked for. Past that tier a bird sends whole frames with no
+fraction, leaving the blend weight at zero, so a material written with a branch does no extra work for a
+bird nobody can make out anyway.
+
+The cost is a second set of bone texture fetches per vertex, in the vertex shader, paid in the base pass
+and in every shadow depth pass. It buys smoothness at 30 fps playback and under a slowed **Play Rate**. It
+does nothing for a clip change, which is pose matching's job.
+
+`flock.Interpolate` overrides it: `0` whole frames, `1` on at every tier.
 
 ---
 
@@ -483,6 +550,8 @@ one. Tiers are *tags*, so a Culled bird's chunks are never visited at all rather
 Idle behaviours run at every tier except Culled, at that tier's stride. Far is included on purpose: a bird
 part way through a dawdle has to finish it wherever it is.
 
+**Interpolate Max Tier** does the same for frame interpolation - see [Blending](#blending).
+
 **Separation** between airborne flockmates is on by default (**Enable Separation**, with **Separation
 Radius** and **Separation Strength**). **Separation Max Tier** decides how far out it runs - that tier and
 every closer one, defaulting to **Near**.
@@ -621,11 +690,14 @@ never written to.
 |---|---|
 | No birds appear | The species has no valid **Idle** mapping, or its mesh failed to load. Both log to `LogFlock` |
 | Birds appear but never animate | `stat flock` shows `Anim` at zero, so the processors are not running - see [README](README.md#performance-and-profiling) |
-| Frozen on the bind pose | `NumCustomDataFloats` disagrees with `AutoPlay`. 4 floats for AutoPlay, 2 for Frame |
+| Frozen on the bind pose | `NumCustomDataFloats` disagrees with `AutoPlay`. 4 floats for AutoPlay, 3 for Frame - Flock writes a third for interpolation, and a material that ignores it is unaffected |
 | Clip plays the wrong animation | An `Animations` index taken from the source list rather than the enabled clips |
 | Only the newest clips are frozen, older ones fine | The material instance was not in **Bone Material Instances** for the re-bake, so its `NumFrames` still describes the old texture. Everything past the old frame count clamps to the last row. Re-bake with the instance listed |
 | Frozen mid-air on one pose | A **Take Off** or **Land** one-shot that has run out, with no **Fly** mapped to hand over to. Map **Fly**, or the matching loop clip |
 | Birds all move identically | **Random Start Phase** is off on the Idle mapping |
+| Clip changes still snap | No pose match table on the species, or it is stale and being ignored. Validate the species, then Build Pose Match Table |
+| A clip opens on a pose unrelated to the one it replaced | The table was built with **Velocity Weight** at zero, so it matched the shape and not the direction |
+| Interpolate Frames does nothing | The bird's material does not read the third custom data float. It is a material feature; the species only decides which birds ask for it |
 | Birds fly or walk sideways | **Mesh Yaw Offset** does not match art that faces something other than +X |
 | Birds standing in the air | Nothing under the volume to trace, or the ground is steeper than **Min Ground Normal Z**. `LogFlock` warns |
 | Birds float or sink | **Snap To Ground** off puts them on the plane through the volume's centre, not its floor |
@@ -633,6 +705,7 @@ never written to.
 | Playback is noise | sRGB, mips or compression changed on a baked texture. The bake sets these; leave them |
 | Animation runs past its end | `SampleRate` is not the source clips' frame rate. It is a time step, not a frame count |
 | Wrong UVs sampled | `UVChannel` of 4+. Only 0-3 work |
+| Prepare refuses, naming sequences | They are on the data asset but not in the recipe. Add them to the recipe's **Anim Sequences**, in the order they already sit in, so no index moves |
 | Birds pop at screen edges | Missing bounds extensions on the static mesh |
 | Jitter or stair-stepping in slow motion | 8-bit precision quantises position to 256 steps across the whole animation bounds. Use 16-bit |
 | *"Too many Bones"* | Over 256 bones at 8-bit precision. Use 16-bit, which has no bone limit beyond texture width |

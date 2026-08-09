@@ -204,7 +204,7 @@ public:
 
 	/** Called by the render processor, once per bird per tick. */
 	void WriteInstance(int32 FlockIndex, int32 ComponentIndex, int32 InstanceIndex,
-		const FTransform& WorldTransform, float Frame);
+		const FTransform& WorldTransform, float Frame, float NextFrame);
 
 	// --- Presentation ----------------------------------------------------------------------------------
 

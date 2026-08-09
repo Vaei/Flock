@@ -30,6 +30,9 @@ private:
 	/** Re-bakes every perch component in the open level. */
 	static void RebuildAllPerchesInLevel();
 
+	/** Rebuilds the pose match table for the bake window's species, without touching its textures. */
+	static void BuildPoseMatchTable();
+
 	static bool CanSpawnPreview();
 
 	/** Where a newly spawned actor should land: in front of the camera, else the origin. */

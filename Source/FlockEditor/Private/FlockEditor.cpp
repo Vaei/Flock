@@ -16,6 +16,7 @@
 #include "FlockDetails.h"
 #include "FlockEditorLog.h"
 #include "FlockEditorStyle.h"
+#include "FlockPoseMatch.h"
 #include "LevelEditorViewport.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -196,6 +197,28 @@ void FFlockEditorModule::SpawnPreviewInCurrentLevel()
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
+void FFlockEditorModule::BuildPoseMatchTable()
+{
+	UFlockSpeciesData* Species = UFlockBakeSettings::Get()->Species.LoadSynchronous();
+
+	FText Error;
+	const bool bBuilt = FFlockPoseMatch::Build(Species, Error);
+
+	FNotificationInfo Info(bBuilt
+		? FText::Format(LOCTEXT("BuiltPoseMatch", "Built the pose match table for {0}."),
+			FText::FromString(Species->GetName()))
+		: Error);
+	Info.ExpireDuration = 8.f;
+
+	if (!bBuilt)
+	{
+		Info.Hyperlink = FSimpleDelegate::CreateStatic(&SFlockBakeWindow::Open);
+		Info.HyperlinkText = LOCTEXT("OpenBakeWindowForPoseMatch", "Open Bake Animation Textures");
+	}
+
+	FSlateNotificationManager::Get().AddNotification(Info);
+}
+
 void FFlockEditorModule::RebuildAllPerchesInLevel()
 {
 	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
@@ -290,6 +313,15 @@ TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
 			"Replaces the AnimToTexture plugin's BP_AnimToTexture utility."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Refresh")),
 		FUIAction(FExecuteAction::CreateStatic(&SFlockBakeWindow::Open)));
+
+	Menu.AddMenuEntry(
+		LOCTEXT("BuildPoseMatch", "Build Pose Match Table"),
+		LOCTEXT("BuildPoseMatchTip",
+			"Works out, for every baked frame, which frame of each animation is the closest pose to it, so a "
+			"bird changing clip opens the new one near the pose it was holding. Runs on the bake window's "
+			"species and leaves its textures alone."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Adjust")),
+		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::BuildPoseMatchTable)));
 
 	Menu.AddMenuEntry(
 		LOCTEXT("SpawnPreview", "Spawn Preview in Current Level"),

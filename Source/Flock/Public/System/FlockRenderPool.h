@@ -9,6 +9,15 @@ class AFlockRenderActor;
 class UInstancedStaticMeshComponent;
 class UStaticMesh;
 
+/**
+ * Per-instance custom data floats: [0] Frame, [1] PrevFrame, [2] NextFrame.
+ *
+ * The first two are AnimToTexture's own layout, matched exactly because the shipped material reads them by
+ * position. The third is the frame after the one being played, which a material that interpolates blends
+ * towards and one that does not never reads.
+ */
+inline constexpr int32 FlockCustomDataFloats = 3;
+
 /** One ISM component and the data staged for it this frame. */
 USTRUCT()
 struct FFlockRenderBatch
@@ -21,7 +30,7 @@ struct FFlockRenderBatch
 
 	TArray<FTransform> Transforms;
 
-	/** Flat pairs of Frame and PrevFrame. */
+	/** Flat runs of FlockCustomDataFloats per instance. */
 	TArray<float> CustomData;
 };
 
@@ -49,7 +58,8 @@ struct FLOCK_API FFlockRenderPool
 	bool AllocateSlot(int32& OutComponentIndex, int32& OutInstanceIndex);
 
 	/** Stages one instance. Transform is world space; it is converted against the host on the way in. */
-	void WriteInstance(int32 ComponentIndex, int32 InstanceIndex, const FTransform& WorldTransform, float Frame);
+	void WriteInstance(int32 ComponentIndex, int32 InstanceIndex, const FTransform& WorldTransform, float Frame,
+		float NextFrame);
 
 	/** Pushes every component's staged data to the renderer. Two calls per component, no more. */
 	void Flush();

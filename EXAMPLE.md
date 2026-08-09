@@ -130,6 +130,7 @@ the bird that opened its beak.
 | | | |
 |---|---|---|
 | **Takeoff Time** | `1.0` | `CrowTakeOff` runs 0.93s. Under that the bird is already flying when the clip ends and **Take Off Loop** never gets a turn |
+| **Pose Matching** | defaults | 952 frames x 21 animations, so the table is 40 KB. Built by the bake |
 | Caw **Weight** | `25` | crows caw constantly; at the 2.0 it started on it was a rarity |
 
 <!-- TODO(jared): add any Perception, Flight or Idle values you moved off default, and why -->

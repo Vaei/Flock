@@ -24,6 +24,12 @@ namespace FFlockCVars
 {
 	/** -1 leaves separation to the species, 0 forces it off, 1 forces it on at every tier. */
 	extern FLOCK_API int32 Separation;
+
+	/** -1 uses whatever the species baked, 0 forces every clip to open on its first frame. */
+	extern FLOCK_API int32 PoseMatch;
+
+	/** -1 leaves frame interpolation to the species, 0 forces it off, 1 forces it on at every tier. */
+	extern FLOCK_API int32 Interpolate;
 }
 
 #define FLOCK_DEBUG_PERCEPTION(Level) (FFlockCVars::DebugPerception >= (Level))
@@ -35,10 +41,17 @@ namespace FFlockCVars
  */
 #define FLOCK_SEPARATION_OVERRIDE() (FFlockCVars::Separation)
 
+/** Pose matching is baked data, not a debug toggle. Only the ability to switch it off from a console goes. */
+#define FLOCK_POSEMATCH_OVERRIDE() (FFlockCVars::PoseMatch)
+
+#define FLOCK_INTERPOLATE_OVERRIDE() (FFlockCVars::Interpolate)
+
 #else
 
 #define FLOCK_DEBUG_PERCEPTION(Level) false
 #define FLOCK_DEBUG_SLOTS(Level) false
 #define FLOCK_SEPARATION_OVERRIDE() (-1)
+#define FLOCK_POSEMATCH_OVERRIDE() (-1)
+#define FLOCK_INTERPOLATE_OVERRIDE() (-1)
 
 #endif

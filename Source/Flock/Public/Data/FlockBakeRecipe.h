@@ -82,6 +82,36 @@ struct FLOCK_API FFlockBakeRecipe
 	UPROPERTY(EditAnywhere, Category="Bake|Static Mesh")
 	bool bGenerateLightmapUVs = true;
 
+	/**
+	 * Work out, for every baked frame, which frame of each animation is the closest pose to it, so a bird
+	 * changing clip opens the new one on a pose near the one it was holding.
+	 *
+	 * Costs a second pass over every clip at bake time and about 40 KB on the species. Nothing at runtime
+	 * beyond a table lookup. Turn it off and every clip opens on its first frame.
+	 */
+	UPROPERTY(EditAnywhere, Category="Bake|Pose Matching")
+	bool bBuildPoseMatchTable = true;
+
+	/** How much a bone being in the wrong place counts against a candidate frame. */
+	UPROPERTY(EditAnywhere, Category="Bake|Pose Matching",
+		meta=(ClampMin="0.0", EditCondition="bBuildPoseMatchTable"))
+	float PoseMatchPositionWeight = 1.f;
+
+	/** How much a bone facing the wrong way counts. Raise it on a bird whose wings barely translate. */
+	UPROPERTY(EditAnywhere, Category="Bake|Pose Matching",
+		meta=(ClampMin="0.0", EditCondition="bBuildPoseMatchTable"))
+	float PoseMatchRotationWeight = 1.f;
+
+	/**
+	 * How much the bones having to be moving the same way counts.
+	 *
+	 * Zero matches the shape of the pose alone, which is free to enter a wing beat at the point it looks
+	 * right but travelling the opposite way, and that reads as a stutter rather than a cut.
+	 */
+	UPROPERTY(EditAnywhere, Category="Bake|Pose Matching",
+		meta=(ClampMin="0.0", EditCondition="bBuildPoseMatchTable"))
+	float PoseMatchVelocityWeight = 0.5f;
+
 	/** Whether there is enough here to bake anything. */
 	bool IsUsable() const
 	{

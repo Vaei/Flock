@@ -6,8 +6,10 @@
 #include "AnimToTextureDataAsset.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "Data/FlockSpeciesData.h"
 #include "FlockBakeSettings.h"
 #include "FlockEditorLog.h"
+#include "FlockPoseMatch.h"
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -360,6 +362,44 @@ bool FFlockBake::PrepareAssets(UFlockBakeSettings& Settings, FText& OutError)
 		}
 	}
 
+	// The recipe owns the sequence list, so this replaces whatever the data asset had. A sequence added to the
+	// data asset directly would go without a word, and losing one shifts every later animation index the
+	// species maps against, so say so instead of replacing.
+	{
+		TArray<FString> Unlisted;
+		for (const FAnimToTextureAnimSequenceInfo& Existing : DataAsset->AnimSequences)
+		{
+			if (!Existing.bEnabled || !Existing.AnimSequence)
+			{
+				continue;
+			}
+
+			const FSoftObjectPath ExistingPath(Existing.AnimSequence);
+			const bool bListed = Settings.Recipe.AnimSequences.ContainsByPredicate(
+				[&ExistingPath](const TSoftObjectPtr<UAnimSequence>& Soft)
+				{
+					return Soft.ToSoftObjectPath() == ExistingPath;
+				});
+
+			if (!bListed)
+			{
+				Unlisted.Add(Existing.AnimSequence->GetName());
+			}
+		}
+
+		if (!Unlisted.IsEmpty())
+		{
+			OutError = FText::Format(LOCTEXT("RecipeMissingSequences",
+				"{0} has sequences this recipe does not list: {1}. Preparing would drop them, and every "
+				"animation index after a dropped one moves. Add them to Anim Sequences in the order they are "
+				"already in, or Load the recipe from the species."),
+				FText::FromString(DataAsset->GetName()),
+				FText::FromString(FString::Join(Unlisted, TEXT(", "))));
+
+			return false;
+		}
+	}
+
 	DataAsset->AnimSequences.Reset();
 	for (const TSoftObjectPtr<UAnimSequence>& SoftSequence : Settings.Recipe.AnimSequences)
 	{
@@ -476,6 +516,24 @@ bool FFlockBake::Bake(const UFlockBakeSettings& Settings, FText& OutError)
 		if (!FlockBakePrivate::BakeOne(DataAsset, Settings.Recipe.VertexMaterialInstances, Settings, Touched, OutError))
 		{
 			return false;
+		}
+	}
+
+	// After the textures, because it measures the frame layout the bake just produced. Not fatal on failure:
+	// without a table every clip opens on its first frame, which is where it opened before there was one.
+	if (Settings.Recipe.bBakeBoneAnimation && Settings.Recipe.bBuildPoseMatchTable)
+	{
+		if (UFlockSpeciesData* Species = Settings.Species.LoadSynchronous())
+		{
+			FText PoseError;
+			if (FFlockPoseMatch::Build(Species, PoseError))
+			{
+				Touched.AddUnique(Species->GetPackage());
+			}
+			else
+			{
+				UE_LOG(LogFlockEditor, Warning, TEXT("Pose match table not built: %s"), *PoseError.ToString());
+			}
 		}
 	}
 

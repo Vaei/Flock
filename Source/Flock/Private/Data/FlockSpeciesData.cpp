@@ -167,6 +167,20 @@ EDataValidationResult UFlockSpeciesData::IsDataValid(FDataValidationContext& Con
 				Result = EDataValidationResult::Invalid;
 			}
 		}
+
+		// Stale rather than wrong, so it is ignored at runtime instead of sending birds to frames that no
+		// longer hold what it measured. Saying so here is the only way anyone finds out.
+		if (!PoseMatchTable.IsEmpty()
+			&& (PoseMatchNumFrames != Baked->NumFrames
+				|| PoseMatchNumAnimations != Baked->Animations.Num()
+				|| PoseMatchTable.Num() != PoseMatchNumFrames * PoseMatchNumAnimations))
+		{
+			Context.AddWarning(FText::FromString(FString::Printf(
+				TEXT("The pose match table was built for %d frames of %d animations, but %s baked %d of %d. ")
+				TEXT("It is ignored until it is rebuilt from the Flock menu."),
+				PoseMatchNumFrames, PoseMatchNumAnimations, *Baked->GetName(), Baked->NumFrames,
+				Baked->Animations.Num())));
+		}
 	}
 
 	return Result;
@@ -204,6 +218,28 @@ bool UFlockSpeciesData::BuildConfigFragment(FFlockSpeciesConfigFragment& OutConf
 	OutConfig.MeshYawOffset = MeshYawOffset;
 	OutConfig.BoundsRadius = BoundsRadius;
 
+	const int32 InterpolateOverride = FLOCK_INTERPOLATE_OVERRIDE();
+	OutConfig.bInterpolateFrames = InterpolateOverride < 0 ? bInterpolateFrames : InterpolateOverride > 0;
+	OutConfig.InterpolateMaxTier = InterpolateOverride > 0 ? EFlockLODTier::Culled : InterpolateMaxTier;
+
+	// A table built against a different bake would send birds to frames that no longer hold what it measured,
+	// so it is only used when its shape still matches what was baked.
+	if (PoseMatchNumFrames == Baked->NumFrames && PoseMatchNumAnimations == Baked->Animations.Num()
+		&& PoseMatchTable.Num() == PoseMatchNumFrames * PoseMatchNumAnimations && !PoseMatchTable.IsEmpty())
+	{
+		OutConfig.PoseMatch = PoseMatchTable.GetData();
+		OutConfig.PoseMatchNumFrames = PoseMatchNumFrames;
+		OutConfig.PoseMatchStride = PoseMatchNumAnimations;
+	}
+	else if (!PoseMatchTable.IsEmpty())
+	{
+		UE_LOG(LogFlock, Warning,
+			TEXT("%s has a pose match table built for %d frames of %d animations, but %s baked %d of %d. ")
+			TEXT("Ignoring it; rebuild it from the Flock menu."),
+			*GetName(), PoseMatchNumFrames, PoseMatchNumAnimations, *Baked->GetName(), Baked->NumFrames,
+			Baked->Animations.Num());
+	}
+
 	for (const TPair<EFlockClip, FFlockClipMapping>& Pair : Clips)
 	{
 		const int32 ClipSlot = static_cast<int32>(Pair.Key);
@@ -227,6 +263,7 @@ bool UFlockSpeciesData::BuildConfigFragment(FFlockSpeciesConfigFragment& OutConf
 		FFlockClipRange& Range = OutConfig.Clips[ClipSlot];
 		Range.StartFrame = Info.StartFrame;
 		Range.EndFrame = Info.EndFrame;
+		Range.AnimationIndex = Pair.Value.AnimationIndex;
 		Range.bLoop = Pair.Value.bLoop;
 		Range.bRandomStartPhase = Pair.Value.bRandomStartPhase;
 		// A non-looping clip interrupted mid-play always snaps, so it is never interruptible whatever the
@@ -283,6 +320,7 @@ bool UFlockSpeciesData::BuildConfigFragment(FFlockSpeciesConfigFragment& OutConf
 		FFlockClipRange& Range = OutConfig.Clips[FirstFlockRestClip + Slot];
 		Range.StartFrame = Info.StartFrame;
 		Range.EndFrame = Info.EndFrame;
+		Range.AnimationIndex = AnimationIndex;
 
 		// A break ends and hands the bird back to idle, so it is always a one-shot that runs to completion.
 		// Looping one would trap the bird in it forever.

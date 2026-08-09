@@ -36,9 +36,11 @@ void FFlockRenderPool::Initialise(AFlockRenderActor* Host, UStaticMesh* Mesh, in
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Component->SetMobility(EComponentMobility::Movable);
 
-		// Frame mode: [0] Frame, [1] PrevFrame. Must agree with the material's AutoPlay switch being off.
+		// Frame mode: [0] Frame, [1] PrevFrame, [2] NextFrame. The first two are AnimToTexture's own layout
+		// and must agree with the material's AutoPlay switch being off; the third is ours, and a material
+		// that does not interpolate simply never reads it.
 		// This reallocates and zeroes, so it has to happen before any instance is added.
-		Component->SetNumCustomDataFloats(2);
+		Component->SetNumCustomDataFloats(FlockCustomDataFloats);
 
 		Component->SetupAttachment(Host->GetRootComponent());
 		Component->RegisterComponent();
@@ -46,7 +48,7 @@ void FFlockRenderPool::Initialise(AFlockRenderActor* Host, UStaticMesh* Mesh, in
 		FFlockRenderBatch& Batch = Components.AddDefaulted_GetRef();
 		Batch.Component = Component;
 		Batch.Transforms.SetNum(Count);
-		Batch.CustomData.SetNumZeroed(Count * 2);
+		Batch.CustomData.SetNumZeroed(Count * FlockCustomDataFloats);
 
 		// Instances exist up front so their indices are stable; unclaimed ones are parked at zero scale.
 		for (int32 Index = 0; Index < Count; ++Index)
@@ -99,7 +101,7 @@ bool FFlockRenderPool::AllocateSlot(int32& OutComponentIndex, int32& OutInstance
 }
 
 void FFlockRenderPool::WriteInstance(int32 ComponentIndex, int32 InstanceIndex,
-	const FTransform& WorldTransform, float Frame)
+	const FTransform& WorldTransform, float Frame, float NextFrame)
 {
 	if (!Components.IsValidIndex(ComponentIndex))
 	{
@@ -113,8 +115,9 @@ void FFlockRenderPool::WriteInstance(int32 ComponentIndex, int32 InstanceIndex,
 	}
 
 	Batch.Transforms[InstanceIndex] = WorldTransform * HostInverse;
-	Batch.CustomData[InstanceIndex * 2 + 0] = Frame;
-	Batch.CustomData[InstanceIndex * 2 + 1] = Frame;
+	Batch.CustomData[InstanceIndex * FlockCustomDataFloats + 0] = Frame;
+	Batch.CustomData[InstanceIndex * FlockCustomDataFloats + 1] = Frame;
+	Batch.CustomData[InstanceIndex * FlockCustomDataFloats + 2] = NextFrame;
 }
 
 void FFlockRenderPool::Flush()

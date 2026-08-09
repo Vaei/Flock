@@ -61,12 +61,24 @@ Content Browser → **Miscellaneous → Data Asset → Flock Species Data**, nam
 2. Set **Source Skeletal Mesh**, **Output Path**, **Asset Name**, your **Clips**, and **Sample Rate**.
 3. **Prepare Asset Set** - creates the mesh, textures and data asset.
 4. Put your material instance in **Bone Material Instances**, and on the new static mesh's material slot.
-5. **Bake**.
+5. Leave **Build Pose Match Table** on.
+6. **Bake**.
 
 <!-- TODO(image): the bake window filled in -->
 
 > [!WARNING]
 > Sample Rate must be your animations' actual frame rate
+
+> [!IMPORTANT]
+> **Build Pose Match Table is what stops your clip changes snapping.** Nothing blends one baked pose into
+> another, so a bird changing clip cuts from one texture row to another. The table records, for every baked
+> frame, which frame of each animation is the closest pose to it, and a bird entering a looping clip opens
+> it there instead of at its first frame. It costs a second pass over your clips at bake time, about 40 KB
+> on the species, and nothing at runtime.
+> <br>
+> <br>It is measured against one bake's frame layout, so **a re-bake makes the old one stale** and it is
+> then ignored rather than used wrongly. The bake rebuilds it; if you ever re-bake another way, use
+> **Flock → Build Pose Match Table**, which rebuilds it without touching a texture.
 
 ### 4. Map the clips
 
@@ -99,12 +111,14 @@ In order of likelihood.
 | No birds at all | No valid **Idle** mapping, or the mesh failed to load. Both log to `LogFlock` |
 | Birds but no animation | `stat flock` shows `Anim` at zero - the processors aren't running, see below |
 | Frozen on the bind pose | `NumCustomDataFloats` disagrees with `AutoPlay`. Set `bAutoPlay` on the **data asset**, never on the material instance - the bake overwrites it |
+| Clip changes snap | No pose match table, or it went stale on a re-bake and is being ignored. Right-click the species → **Validate Data** says which, then **Flock → Build Pose Match Table** |
 | Wrong clip plays | An index taken from your source list rather than the enabled sequences |
 | Every bird moves identically | **Random Start Phase** off on Idle |
 | Birds standing in the air | Nothing under the volume to trace against, or the ground is too steep for **Min Ground Normal Z**. `LogFlock` warns |
 | Playback is noise | sRGB, mips or compression changed on a baked texture. The bake sets these; leave them |
 | Birds pop at screen edges | Bounds extensions missing on the static mesh |
 | Bake fails, *"Already used by LightMap"* | Lightmap index equals the data asset's `UVChannel` |
+| Prepare fails, *"has sequences this recipe does not list"* | An animation was added to the data asset directly. The recipe owns that list, so add it to **Anim Sequences** too - preparing would otherwise drop it and move every later index |
 
 Watch **`LogAnimToTextureEditor`** during a bake; the plugin's own message log listing is never written to.
 
@@ -116,12 +130,13 @@ flock.Debug.Perception 2    also threat sources
 flock.Debug.Perception 3    also flock bounds and the attractor
 flock.Debug.Slots 1         perch slots: green free, yellow reserved, red occupied
 flock.Debug.Slots 2         also which bird holds each one
+flock.PoseMatch 0           clips open on their first frame, to A/B the pose match table
 ```
 
 `Perception 1` is the one to reach for when a clip is wrong: it names the clip on the bird, so a bad index
 shows up without opening the data asset.
 
-Full symptom table in [`FLOCK.md`](../../../FLOCK.md#troubleshooting).
+Full symptom table in [`FLOCK.md`](./FLOCK.md#troubleshooting).
 
 ---
 
