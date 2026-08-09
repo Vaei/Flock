@@ -6,12 +6,12 @@
 vertex animation
 > <br>No actors per bird, no skeletal meshes, no anim blueprints, no runtime traces.
 
-Full documentation: [`FLOCK.md`](./FLOCK.md).
-
 UE5.8+
 
+---
+
 > [!CAUTION]
-> <br>Flock has not officially released. Expect terrible bugs, and updates to occur without versioning or changelog reflecting them. Also any documentation is incomplete, no images or videos are available yet either. Come back soon!
+> <br>Flock has not officially released. Expect terrible bugs, and updates to occur without versioning or changelog reflecting them. Also any documentation is incomplete, no images or videos are available yet either. **Come back soon!**
 
 <!-- TODO(image): hero shot - a flock on a rooftop, one bird mid-takeoff -->
 
@@ -23,6 +23,9 @@ UE5.8+
 
 > [!TIP]
 > View the setup used for the Crow in the examples here: [`EXAMPLE.md`](./EXAMPLE.md).
+
+> [!NOTE]
+> Full documentation: [`FLOCK.md`](./FLOCK.md).
 
 ### 1. Material
 
