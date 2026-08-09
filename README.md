@@ -17,6 +17,12 @@ UE5.8+
 
 <!-- TODO(video): hero shot -->
 
+## Features
+
+<!-- TODO(features) -->
+
+<img width="321" height="322" alt="Photoshop_2026-08-09_20-36-31" src="https://github.com/user-attachments/assets/a08c0e96-caad-4427-bf8a-3998ea5b90e3" />
+
 ---
 
 ## How to Use
@@ -67,7 +73,7 @@ Content Browser → **Miscellaneous → Data Asset → Flock Species Data**, nam
 5. Leave **Build Pose Match Table** on.
 6. **Bake**.
 
-<!-- TODO(image): the bake window filled in -->
+<img width="626" height="843" alt="UnrealEditor-Win64-DebugGame_2026-08-09_20-46-55" src="https://github.com/user-attachments/assets/fcc01d11-583a-4754-9bc3-ec5018d1b480" />
 
 > [!WARNING]
 > Sample Rate must be your animations' actual frame rate
