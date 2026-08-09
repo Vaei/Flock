@@ -31,16 +31,16 @@ Setup, troubleshooting basics and profiling are in [`README.md`](README.md). A w
 | **Idle** | required. Everything falls back to it |
 | **Turn Left**, **Turn Right** | tracking a threat, and idle glances |
 | **Take Off**, **Fly**, **Land** | required for a bird to ever leave the ground. Without **Fly** the flock is permanently earthbound, which is a valid way to ship one |
-| **Take Off Loop**, **Land Loop** | optional. Held once the one-shot beside them has finished but the bird has not yet finished climbing, or has not yet touched down. Unmapped, that gap is filled by **Fly** |
-| **Glide** | optional. Replaces **Fly** while descending faster than **Glide Descent Rate**, and fills most of a descent when **Land Loop** is unmapped |
+| **Take Off Loop** | optional. Held once **Take Off** has finished but the bird is still climbing. Unmapped, that gap is **Fly** |
+| **Land Loop** | optional. The descent itself, from committing to coming down until the feet are on the ground. Unmapped, the descent is **Glide**, or **Fly** if there is no glide either |
+| **Glide** | optional. Replaces **Fly** while descending faster than **Glide Descent Rate**, and stands in for **Land Loop** when that is unmapped |
 | **Bank Left**, **Bank Right** | optional. Replace **Fly** while turning harder than **Bank Clip Yaw Rate** |
 | **Walk** | a slow dawdle. Without it birds stand still between idles |
 | Rest breaks | authored separately, below |
 
-A launch lasts **Takeoff Time** and a descent lasts however long the bird needs to reach its slot, and
-neither is the length of a clip. So a one-shot that ends early hands over rather than holding its last
-frame: to its loop clip if there is one, and to **Fly** if there is not. A **Take Off** clip that is
-*longer* than the launch plays out in full - a one-shot is never cut mid-pose, because VAT cannot blend.
+A launch lasts **Takeoff Time**, which is not the length of a clip, so a **Take Off** that ends early hands
+over to **Take Off Loop**, or to **Fly**. One that runs *longer* than the launch plays out in full - a
+one-shot is never cut mid-pose, because VAT cannot blend.
 
 > [!IMPORTANT]
 > **Take Off Loop only ever plays if Takeoff Time outlasts the Take Off clip.** Below that the bird is
@@ -48,8 +48,10 @@ frame: to its loop clip if there is one, and to **Fly** if there is not. A **Tak
 > data. The default 0.35s launch is shorter than most takeoff animations. **Land Loop** has no such
 > problem: a descent is always long.
 
-**Land is a flare, not a touchdown.** It starts when the bird commits to coming down, which is above and
-usually away from where it lands, so most of the descent is the bridging clip. Touchdown snaps to **Idle**.
+A landing runs **Land Loop → Land → Idle**. **Land Loop** covers the whole descent, however long it takes.
+**Land** starts the moment the feet are down and plays out on the ground, and only when it finishes does the
+bird go to idle. So author **Land** as the arrival itself - the flare, the fold, the settle - not as
+something that happens on the way down.
 
 Each mapping:
 
@@ -120,6 +122,12 @@ a populated window, so pointing at a fresh species starts from what you already 
 
 It also sets `UVChannel = 1`, `NumDriverTriangles = 1`, moves the lightmap to UV2, and sets
 `bAutoPlay = false`.
+
+> [!CAUTION]
+> **Every re-bake needs the material instance in Bone Material Instances**, not just the first one. The
+> instance carries its own copy of `NumFrames`, and a bake that does not update it leaves the material
+> addressing the old texture: everything past the old frame count clamps to the last row and freezes. Since
+> new clips are appended at the end, this hits exactly the clips you just added and nothing else.
 
 > [!WARNING]
 > Set `bAutoPlay` on the **data asset**, never on the material instance. The bake pushes it onto the
@@ -396,8 +404,8 @@ spooked it and on the far side of itself, within **Land Search Radius**; failing
 descends at **Land Speed** from **Land Approach Height** and settles within **Land Arrive Distance**.
 **Min Flight Time** stops a launch from being aborted immediately.
 
-The **Land** clip starts when it commits to coming down, not when it arrives, so most of the descent is
-**Land Loop** or **Fly** - see [Clips](#clips).
+The descent plays **Land Loop**; **Land** is the arrival and plays once the bird is down - see
+[Clips](#clips).
 
 **Landed Cooldown** then keeps it from bouncing straight back up: alert decays **Refractory Decay Scale**
 faster and the flee bar is raised by **Refractory Flee Bonus** while it lasts.
@@ -615,6 +623,7 @@ never written to.
 | Birds appear but never animate | `stat flock` shows `Anim` at zero, so the processors are not running - see [README](README.md#performance-and-profiling) |
 | Frozen on the bind pose | `NumCustomDataFloats` disagrees with `AutoPlay`. 4 floats for AutoPlay, 2 for Frame |
 | Clip plays the wrong animation | An `Animations` index taken from the source list rather than the enabled clips |
+| Only the newest clips are frozen, older ones fine | The material instance was not in **Bone Material Instances** for the re-bake, so its `NumFrames` still describes the old texture. Everything past the old frame count clamps to the last row. Re-bake with the instance listed |
 | Frozen mid-air on one pose | A **Take Off** or **Land** one-shot that has run out, with no **Fly** mapped to hand over to. Map **Fly**, or the matching loop clip |
 | Birds all move identically | **Random Start Phase** is off on the Idle mapping |
 | Birds fly or walk sideways | **Mesh Yaw Offset** does not match art that faces something other than +X |

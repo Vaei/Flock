@@ -1179,7 +1179,7 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			{
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Landing);
 
-				Anims[*It].Clip = EFlockClip::Land;
+				Anims[*It].Clip = Config.GetDescentClip();
 				Anims[*It].ClipStartTime = Now;
 				continue;
 			}
@@ -1199,7 +1199,7 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			{
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Landing);
 
-				Anims[*It].Clip = EFlockClip::Land;
+				Anims[*It].Clip = Config.GetDescentClip();
 				Anims[*It].ClipStartTime = Now;
 			}
 		}
@@ -1303,12 +1303,17 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Grounded);
 
-				const FFlockClipRange& Idle = Config.GetClip(EFlockClip::Idle);
-				const float IdleSeconds = Config.GetClipSeconds(Idle, Anims[*It].PlayRate);
+				// The touchdown plays here, on the ground, and hands over to idle when it finishes. It is
+				// must-complete like every one-shot, so nothing cuts it short.
+				const EFlockClip Touchdown = Config.GetClip(EFlockClip::Land).bValid
+					? EFlockClip::Land : EFlockClip::Idle;
 
-				Anims[*It].Clip = EFlockClip::Idle;
-				Anims[*It].ClipStartTime = Idle.bRandomStartPhase
-					? Now - (Birds[*It].RandomSeed / 255.f) * IdleSeconds
+				const FFlockClipRange& TouchdownRange = Config.GetClip(Touchdown);
+				const float TouchdownSeconds = Config.GetClipSeconds(TouchdownRange, Anims[*It].PlayRate);
+
+				Anims[*It].Clip = Touchdown;
+				Anims[*It].ClipStartTime = TouchdownRange.bRandomStartPhase
+					? Now - (Birds[*It].RandomSeed / 255.f) * TouchdownSeconds
 					: Now;
 				continue;
 			}
@@ -1487,8 +1492,10 @@ void UFlockRenderProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 				// selected but not advancing look identical from the outside, and the only way to tell them
 				// apart is guesswork.
 				static const UEnum* ClipEnum = StaticEnum<EFlockClip>();
+				static const UEnum* StateEnum = StaticEnum<EFlockBirdState>();
 				DrawDebugString(World, Base + FVector(0.f, 0.f, 72.f),
-					FString::Printf(TEXT("%s %.0f"),
+					FString::Printf(TEXT("%s | %s %.0f"),
+						*StateEnum->GetNameStringByValue(static_cast<int64>(States[*It].State)),
 						*ClipEnum->GetNameStringByValue(static_cast<int64>(Anims[*It].Clip)),
 						Anims[*It].Frame),
 					nullptr, Colour, 0.f);

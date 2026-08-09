@@ -240,11 +240,26 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 	}
 
 	/**
+	 * What a bird plays coming down, from committing to the descent until the touchdown one-shot takes over.
+	 */
+	EFlockClip GetDescentClip() const
+	{
+		if (GetClip(EFlockClip::LandLoop).bValid)
+		{
+			return EFlockClip::LandLoop;
+		}
+		if (GetClip(EFlockClip::Glide).bValid)
+		{
+			return EFlockClip::Glide;
+		}
+		return EFlockClip::Fly;
+	}
+
+	/**
 	 * What follows a one-shot that has reached its last frame. Count means hold that frame, because something
 	 * else owns the transition.
 	 *
-	 * Takeoff and landing both outlast their clips, so without this a bird holds the last pose of a launch or
-	 * a flare for the rest of the climb or the whole descent.
+	 * A launch outlasts its clip, so without this a bird holds the last pose of one for the rest of the climb.
 	 */
 	EFlockClip GetOneShotSuccessor(EFlockClip Clip, EFlockBirdState BirdState) const
 	{
@@ -271,9 +286,12 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 		case EFlockClip::TakeOff:
 			return Bridge(EFlockClip::TakeOffLoop, BirdState == EFlockBirdState::TakingOff, EFlockClip::Fly);
 
-		// The rest of a descent is a glide where the species has one, since that is what it is.
+		// The touchdown plays out on the ground, so what follows it is standing there. Still airborne means it
+		// was left behind somehow, and flight takes the clip back.
 		case EFlockClip::Land:
-			return Bridge(EFlockClip::LandLoop, BirdState == EFlockBirdState::Landing, EFlockClip::Glide);
+			return BirdState == EFlockBirdState::Flying || BirdState == EFlockBirdState::Landing
+				? Bridge(EFlockClip::Count, false, EFlockClip::Glide)
+				: EFlockClip::Idle;
 
 		default:
 			return EFlockClip::Count;

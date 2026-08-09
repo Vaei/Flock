@@ -8,6 +8,10 @@
 #include "Sound/SoundBase.h"
 #include "Mass/FlockFragments.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
 UStaticMesh* UFlockSpeciesData::ResolveMesh() const
 {
 	return Mesh.LoadSynchronous();
@@ -87,6 +91,88 @@ USoundBase* UFlockSpeciesData::PickSound(const TArray<TSoftObjectPtr<USoundBase>
 	return Sounds[FMath::RandHelper(Sounds.Num())].LoadSynchronous();
 }
 
+bool UFlockSpeciesData::ValidateMaterialFrameCount(FString& OutError) const
+{
+	const UAnimToTextureDataAsset* Baked = AnimData.LoadSynchronous();
+	const UStaticMesh* BakedMesh = Mesh.LoadSynchronous();
+	if (!Baked || !BakedMesh || Baked->NumFrames <= 0)
+	{
+		return true;
+	}
+
+	static const FName NumFramesParameter(TEXT("NumFrames"));
+
+	for (int32 SlotIndex = 0; SlotIndex < BakedMesh->GetStaticMaterials().Num(); ++SlotIndex)
+	{
+		const UMaterialInterface* Assigned = BakedMesh->GetMaterial(SlotIndex);
+
+		float MaterialFrames = 0.f;
+		if (!Assigned || !Assigned->GetScalarParameterValue(NumFramesParameter, MaterialFrames))
+		{
+			continue;
+		}
+
+		if (FMath::RoundToInt(MaterialFrames) != Baked->NumFrames)
+		{
+			OutError = FString::Printf(
+				TEXT("%s holds %d frames but %s is set to %d. Re-bake with that instance in Bone Material ")
+				TEXT("Instances; until then every frame past %d freezes on the last one."),
+				*Baked->GetName(), Baked->NumFrames, *Assigned->GetName(),
+				FMath::RoundToInt(MaterialFrames), FMath::RoundToInt(MaterialFrames));
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
+#if WITH_EDITOR
+EDataValidationResult UFlockSpeciesData::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	FString StaleMaterial;
+	if (!ValidateMaterialFrameCount(StaleMaterial))
+	{
+		Context.AddError(FText::FromString(StaleMaterial));
+		Result = EDataValidationResult::Invalid;
+	}
+
+	const UAnimToTextureDataAsset* Baked = AnimData.LoadSynchronous();
+	if (Baked)
+	{
+		for (const TPair<EFlockClip, FFlockClipMapping>& Pair : Clips)
+		{
+			if (!Baked->Animations.IsValidIndex(Pair.Value.AnimationIndex))
+			{
+				Context.AddError(FText::FromString(FString::Printf(
+					TEXT("Clip %s maps animation %d, but %s only baked %d."),
+					*StaticEnum<EFlockClip>()->GetNameStringByValue(static_cast<int64>(Pair.Key)),
+					Pair.Value.AnimationIndex, *Baked->GetName(), Baked->Animations.Num())));
+
+				Result = EDataValidationResult::Invalid;
+			}
+		}
+
+		for (const FFlockRestBreak& Break : RestBreaks)
+		{
+			const bool bMirrorBad = Break.bMirrored && !Baked->Animations.IsValidIndex(Break.MirrorAnimationIndex);
+			if (!Baked->Animations.IsValidIndex(Break.AnimationIndex) || bMirrorBad)
+			{
+				Context.AddError(FText::FromString(FString::Printf(
+					TEXT("Rest break %s maps an animation %s has not baked."),
+					*Break.Name.ToString(), *Baked->GetName())));
+
+				Result = EDataValidationResult::Invalid;
+			}
+		}
+	}
+
+	return Result;
+}
+#endif
+
 bool UFlockSpeciesData::BuildConfigFragment(FFlockSpeciesConfigFragment& OutConfig, int32 SpeciesIndex) const
 {
 	OutConfig.SpeciesIndex = SpeciesIndex;
@@ -103,6 +189,12 @@ bool UFlockSpeciesData::BuildConfigFragment(FFlockSpeciesConfigFragment& OutConf
 		UE_LOG(LogFlock, Error, TEXT("%s references %s, which has not been baked yet."),
 			*GetName(), *Baked->GetName());
 		return false;
+	}
+
+	FString StaleMaterial;
+	if (!ValidateMaterialFrameCount(StaleMaterial))
+	{
+		UE_LOG(LogFlock, Error, TEXT("%s: %s"), *GetName(), *StaleMaterial);
 	}
 
 	OutConfig.SampleRate = Baked->SampleRate > 0.f ? Baked->SampleRate : 30.f;

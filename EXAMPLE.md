@@ -12,7 +12,7 @@ version of both.
 
 | | |
 |---|---|
-| `SKM_Crow` | 13 bones, 832 tris, 1 LOD, no morph targets |
+| `SKM_Crow` | 18 bones, 832 tris, 1 LOD, no morph targets |
 | 21 sequences | all 30 fps, all on the one skeleton |
 | `M_Flock` | an existing base colour texture and roughness parameter |
 
@@ -59,7 +59,7 @@ It produced `SM_Crow_VAT`, `TX_Crow_BonePosition`, `TX_Crow_BoneRotation`, `TX_C
 `DA_Crow_BoneAnimation`.
 
 <!-- TODO(screenshot): the Flock folder after the bake -->
-<!-- TODO(screenshot): DA_Crow_BoneAnimation, showing NumBones 13 and the Animations array -->
+<!-- TODO(screenshot): DA_Crow_BoneAnimation, showing NumBones 18 and the Animations array -->
 
 ---
 
@@ -85,10 +85,6 @@ Indices 3-13 are the rest breaks, `CrowRB_` prefixed.
 
 **Bank Left** and **Bank Right** are the only clips left unmapped. The bird leans through its transform
 instead, which is continuous rather than an on/off pose - see [Flying](FLOCK.md#flying).
-
-The last three were added after the first bake and **appended** to the sequence list, so nothing before
-them moved. Adding through a multi-select drop instead sorts alphabetically and would have shifted
-everything - the reason to check the indices either way.
 
 <!-- TODO(screenshot): the species' Clips map, expanded -->
 

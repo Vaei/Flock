@@ -165,15 +165,38 @@ namespace FlockBakePrivate
 		CollectPackage(DataAsset->VertexPositionTexture.Get(), OutTouched);
 		CollectPackage(DataAsset->VertexNormalTexture.Get(), OutTouched);
 
+		TArray<UMaterialInstanceConstant*> Instances;
 		for (const TSoftObjectPtr<UMaterialInstanceConstant>& SoftInstance : MaterialInstances)
 		{
-			UMaterialInstanceConstant* Instance = SoftInstance.LoadSynchronous();
-			if (!Instance)
+			if (UMaterialInstanceConstant* Instance = SoftInstance.LoadSynchronous())
+			{
+				Instances.AddUnique(Instance);
+			}
+			else
 			{
 				UE_LOG(LogFlockEditor, Warning, TEXT("Skipping unresolved material instance %s"),
 					*SoftInstance.ToString());
-				continue;
 			}
+		}
+
+		// An instance on the mesh but missing from the list is the silent failure this exists to stop: it
+		// keeps the frame count of the bake before this one, so every frame past that count clamps to the
+		// last row of the texture. New clips are appended, so it freezes exactly the ones just added.
+		for (int32 SlotIndex = 0; SlotIndex < StaticMesh->GetStaticMaterials().Num(); ++SlotIndex)
+		{
+			UMaterialInstanceConstant* OnMesh = Cast<UMaterialInstanceConstant>(StaticMesh->GetMaterial(SlotIndex));
+			if (OnMesh && !Instances.Contains(OnMesh))
+			{
+				UE_LOG(LogFlockEditor, Log,
+					TEXT("%s is on %s slot %d but not in Bone Material Instances. Updating it anyway."),
+					*OnMesh->GetName(), *StaticMesh->GetName(), SlotIndex);
+
+				Instances.Add(OnMesh);
+			}
+		}
+
+		for (UMaterialInstanceConstant* Instance : Instances)
+		{
 
 			// The defaults point at the AnimToTexture plugin's Mannequin instances, which are useful to
 			// read but live in engine content. Pushing a bird's parameters onto one silently repoints it

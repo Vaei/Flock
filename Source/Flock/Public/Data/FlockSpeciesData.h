@@ -254,6 +254,19 @@ public:
 	 * The single place the expansion order is decided, so the build and the audio lookup cannot disagree
 	 * about which slot is which break.
 	 */
+	/**
+	 * Whether the mesh's materials agree with the baked data about how many frames the textures hold.
+	 *
+	 * A material instance carries its own copy of the frame count, so one left out of a re-bake keeps the
+	 * old one and every frame past it clamps to the last row of the texture. Clips are appended, so what
+	 * freezes is exactly the clips that were just added, silently.
+	 */
+	bool ValidateMaterialFrameCount(FString& OutError) const;
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
+
 	void BuildRestSlotTable(TStaticArray<FFlockRestSlotRef, NumFlockRestClips>& OutTable) const;
 
 	/**
