@@ -44,7 +44,7 @@ Assign your bird a material you're willing to modify, then on it set:
 
 Insert `MF_BoneAnimation` between `MakeMaterialAttributes` and the `MaterialAttributes` output.
 
-<!-- TODO(image): the three-node material graph -->
+<img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
 
 ### 2. Species
 
