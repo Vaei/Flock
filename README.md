@@ -83,7 +83,7 @@ Insert **`MF_FlockBoneAnimation`** between `MakeMaterialAttributes` and the `Mat
 > [!NOTE]
 > A drop-in for the AnimToTexture plugin's `MF_BoneAnimation` that adds optional blending between adjacent frames, free unless you turn it on: [Frame interpolation](./FLOCK.md#frame-interpolation).
 
-<img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
+<img width="1219" height="266" alt="UnrealEditor-Win64-DebugGame_2026-08-09_21-29-58" src="https://github.com/user-attachments/assets/008a1e5c-1ced-41b0-b1d0-33857877e7a5" />
 
 ### 2. Species
 
