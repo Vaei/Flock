@@ -273,13 +273,33 @@ namespace FlockProcessorPrivate
 	}
 
 	/**
-	 * Keeps a bird out of its flock's blockers.
-	 *
-	 * Two halves, and both are needed. The steering half is what makes a flock look like it knows the
-	 * building is there; the positional half is what guarantees it never ends up inside one, which steering
-	 * alone cannot promise at any finite turn rate.
+	 * Moves a position out of any blocker it is inside. The hard half of avoidance, and the only half that
+	 * guarantees anything: steering cannot promise a bird stays out at a finite turn rate.
 	 */
-	static FVector AvoidBlockers(const FFlockRuntimeSharedFragment& Runtime, float Strength, FVector& Position)
+	static void PushOutOfBlockers(const FFlockRuntimeSharedFragment& Runtime, FVector& Position)
+	{
+		for (int32 Index = 0; Index < Runtime.NumBlockers; ++Index)
+		{
+			FVector Outward;
+			const float Distance = BlockerDistance(Runtime.Blockers[Index], Position, Outward);
+
+			if (Distance < 0.f)
+			{
+				// A hair outside, so the next frame's test does not read as still inside.
+				Position += Outward * (-Distance + 1.f);
+			}
+		}
+	}
+
+	/**
+	 * A nudge away from blockers the position is near, so a flock reads as knowing a building is there rather
+	 * than pulling up short against it.
+	 *
+	 * Clamped to one bird's worth of speed. Left unclamped it can exceed whatever the bird was trying to do
+	 * and cancel it outright, which is a bird hovering next to a volume forever instead of steering past it.
+	 */
+	static FVector SteerFromBlockers(const FFlockRuntimeSharedFragment& Runtime, float Strength,
+		const FVector& Position)
 	{
 		FVector Steer = FVector::ZeroVector;
 
@@ -292,19 +312,15 @@ namespace FlockProcessorPrivate
 
 			if (Distance < 0.f)
 			{
-				// A hair outside, so the next frame's test does not read as still inside.
-				Position += Outward * (-Distance + 1.f);
 				Steer += Outward * Strength;
-				continue;
 			}
-
-			if (Blocker.Margin > 0.f && Distance < Blocker.Margin)
+			else if (Blocker.Margin > 0.f && Distance < Blocker.Margin)
 			{
 				Steer += Outward * (Strength * (1.f - Distance / Blocker.Margin));
 			}
 		}
 
-		return Steer;
+		return Steer.GetClampedToMaxSize(1.f);
 	}
 
 	/** The way the bird is already facing, as a direction, for when its velocity cannot say. */
@@ -1065,8 +1081,10 @@ void UFlockTakeoffProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 
 			if (Runtime.HasBlockers())
 			{
-				const FVector Steer = FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength,
-					Climbed);
+				FlockProcessorPrivate::PushOutOfBlockers(Runtime, Climbed);
+
+				const FVector Steer = FlockProcessorPrivate::SteerFromBlockers(Runtime,
+					F.BlockerAvoidStrength, Climbed);
 
 				Launch = (Launch + Steer * Speed).GetSafeNormal(1.e-4f, Direction) * Speed;
 			}
@@ -1217,7 +1235,9 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			FVector Moved = Position;
 			if (Runtime.HasBlockers())
 			{
-				Desired += FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength, Moved)
+				FlockProcessorPrivate::PushOutOfBlockers(Runtime, Moved);
+
+				Desired += FlockProcessorPrivate::SteerFromBlockers(Runtime, F.BlockerAvoidStrength, Moved)
 					* F.CruiseSpeed;
 			}
 
@@ -1235,7 +1255,7 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			Moved += NewVelocity * Dt;
 			if (Runtime.HasBlockers())
 			{
-				FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength, Moved);
+				FlockProcessorPrivate::PushOutOfBlockers(Runtime, Moved);
 			}
 
 			Transform.SetLocation(Moved);
@@ -1399,15 +1419,6 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 
 			Velocity = FMath::Lerp(Velocity, Desired, Converge);
 
-			if (Runtime.HasBlockers())
-			{
-				FVector Probe = Position + Velocity * Dt;
-				const FVector Steer = FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength,
-					Probe);
-
-				Velocity += Steer * F.LandSpeed;
-			}
-
 			// Arrives on the frame it would otherwise overshoot, so the bird is placed exactly once and there
 			// is no final hop onto the spot.
 			if (bOverhead && Velocity.Size() * Dt >= Distance)
@@ -1460,7 +1471,17 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 
 			Velocities[*It].Velocity = FVector3f(Velocity);
-			Transform.SetLocation(Position + Velocity * Dt);
+
+			// Kept out of a blocker, never steered away from one. A landing is aimed at an authored spot, and
+			// a push away from where a bird is going is a bird that hovers instead of arriving. Stopped once
+			// it is nearly there, so a blocker clipping the spot cannot eject it every frame forever.
+			FVector Landed = Position + Velocity * Dt;
+			if (Runtime.HasBlockers() && Distance > F.LandArriveDistance)
+			{
+				FlockProcessorPrivate::PushOutOfBlockers(Runtime, Landed);
+			}
+
+			Transform.SetLocation(Landed);
 
 			// The last of a descent is straight down, which has no heading to take.
 			const FVector Flat(Velocity.X, Velocity.Y, 0.f);

@@ -339,10 +339,15 @@ out of. Nothing else needs setting.
 | **Avoid Margin** | how far outside the surface birds start turning away. Nothing gets through either way - this is the difference between a flock that curves around a building and one that pulls up short against the wall of it |
 | **Enabled** | off leaves it in the level doing nothing |
 
-Takeoff, cruise and descent all respect them. Avoidance is two halves: a steering push away, which is what
-makes a flock look like it knows the building is there, and a hard placement outside the surface, which is
-what makes "never inside" true rather than merely likely. **Blocker Avoid Strength** on the species scales
-the steering half; the placement half is not optional.
+Takeoff, cruise and descent all respect them. Avoidance is two halves: steering away, which is what makes a
+flock look like it knows the building is there, and a hard placement outside the surface, which is what
+makes "never inside" true rather than merely likely. **Blocker Avoid Strength** on the species scales the
+steering half, capped at one bird's worth of speed so avoiding something can deflect a bird but never
+cancel what it was doing. The placement half is not optional.
+
+**A descent is only ever placed, never steered.** It is aimed at an authored spot, so turning a bird away
+from that spot is a bird that hovers beside a volume instead of arriving. The placement stops too once the
+bird is within **Land Arrive Distance**, so a volume clipping the spot cannot eject it every frame forever.
 
 Cost is `MaxFlockBlockers` (6) shapes per flock, chosen nearest-first by the broadphase from however many
 are in the level, so per-bird cost is flat in how many volumes exist. `flock.Debug.Perception 3` draws the
@@ -772,6 +777,7 @@ never written to.
 | Birds standing in the air | Nothing under the volume to trace, or the ground is steeper than **Min Ground Normal Z**. `LogFlock` warns |
 | Birds fly through a building | No **Flock Blocking Volume** around it, or it is further from the flock centre than six others - only that many are kept per flock. `flock.Debug.Perception 3` draws the ones in use |
 | Birds hover against a wall | A perch slot or the flock volume is inside a blocker, so they are being sent where they cannot go |
+| Birds never finish landing, stuck on the descent clip | A blocking volume's **Avoid Margin** reaches over the approach. The margin extends past every face, so a volume that visibly clears the perch can still cover the path down to it. `flock.Debug.Perception 3` draws the margins |
 | Birds float or sink | **Snap To Ground** off puts them on the plane through the volume's centre, not its floor |
 | One wrong frame per loop | `Frame` offset past the clip's end, sampling the next clip's first frame. `Frame` maps directly onto the baked index |
 | Playback is noise | sRGB, mips or compression changed on a baked texture. The bake sets these; leave them |
