@@ -29,10 +29,10 @@ Everything below was produced from those three.
 ## 1. Material
 
 `M_Flock` got **Use Material Attributes**, **Num Customized UVs 1** and **Used with Instanced Static
-Meshes**, its two nodes went into a `MakeMaterialAttributes`, and `MF_BoneAnimation` went between that and
-the output. `MI_Crow_VAT` was made from it.
+Meshes**, its two nodes went into a `MakeMaterialAttributes`, and `MF_FlockBoneAnimation` went between that
+and the output. `MI_Crow_VAT` was made from it, with **Interpolate** ticked.
 
-<!-- TODO(screenshot): M_Flock's graph, showing MakeMaterialAttributes into MF_BoneAnimation -->
+<!-- TODO(screenshot): M_Flock's graph, showing MakeMaterialAttributes into MF_FlockBoneAnimation -->
 <!-- TODO(screenshot): the material's details panel, with the three settings ticked -->
 
 ---
@@ -131,6 +131,8 @@ the bird that opened its beak.
 |---|---|---|
 | **Takeoff Time** | `1.0` | `CrowTakeOff` runs 0.93s. Under that the bird is already flying when the clip ends and **Take Off Loop** never gets a turn |
 | **Pose Matching** | defaults | 952 frames x 21 animations, so the table is 40 KB. Built by the bake |
+| **Interpolate** (on `MI_Crow_VAT`) | on | 30 fps playback on a slow wingbeat steps visibly up close. Takes the crow's vertex shader from 956 instructions to 1440 |
+| **Interpolate Frames** (species) | on | the other half of it. Without this the material blends two identical frames and the 1440 buys nothing |
 | Caw **Weight** | `25` | crows caw constantly; at the 2.0 it started on it was a rarity |
 
 <!-- TODO(jared): add any Perception, Flight or Idle values you moved off default, and why -->

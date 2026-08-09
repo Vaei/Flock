@@ -34,7 +34,7 @@ Assign your bird a material you're willing to modify, then on it set:
 
 | Setting | Value | Why |
 |---|---|---|
-| **Use Material Attributes** | ✔ | Mandatory. `MF_BoneAnimation` takes attributes in and returns both World Position Offset and Normal on one wire; without this there is no pin to connect. |
+| **Use Material Attributes** | ✔ | Mandatory. The bone animation function takes attributes in and returns both World Position Offset and Normal on one wire; without this there is no pin to connect. |
 | **Num Customized UVs** | `1` | |
 | **Used with Instanced Static Meshes** | ✔ | Required to render on an ISM. |
 | **Used with Skeletal Meshes** | ✔ | Only if you also want the material on the source skeletal mesh. |
@@ -42,12 +42,21 @@ Assign your bird a material you're willing to modify, then on it set:
 | Shading Model | Default Lit | |
 | Tangent Space Normal | ✔ (default) | The function's normal path assumes it. |
 
-Insert `MF_BoneAnimation` between `MakeMaterialAttributes` and the `MaterialAttributes` output.
+Insert **`MF_FlockBoneAnimation`** between `MakeMaterialAttributes` and the `MaterialAttributes` output.
 
-> [!TIP]
-> `MF_FlockBoneAnimation`, in this plugin, is a drop-in for it that adds an **Interpolate** static switch
-> for blending between adjacent frames. Off it is free - the same shader instruction count as the engine
-> function. See [Blending](./FLOCK.md#frame-interpolation).
+It is a drop-in replacement for the AnimToTexture plugin's `MF_BoneAnimation` - same inputs, same
+parameters, filled by the same bake - with one addition: an **Interpolate** static switch for blending
+between adjacent frames. Left off it costs nothing whatsoever, compiling to the same vertex shader
+instruction count as the engine function, so there is no reason to use the engine one instead.
+
+> [!IMPORTANT]
+> Interpolation needs **both halves**, and each is useless alone. Tick **Interpolate** on the material
+> instance, *and* tick **Interpolate Frames** on the species. With only the material the shader blends two
+> identical frames: full cost, no change on screen. With only the species nothing reads the frame it sends.
+> <br>
+> <br>Leave both off unless the animation reads as steppy. It does nothing for clip changes - that is
+> [pose matching](./FLOCK.md#pose-matching) - and on the crow it adds 51% to the vertex shader. See
+> [Blending](./FLOCK.md#frame-interpolation).
 
 <img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
 
@@ -117,6 +126,7 @@ In order of likelihood.
 | Birds but no animation | `stat flock` shows `Anim` at zero - the processors aren't running, see below |
 | Frozen on the bind pose | `NumCustomDataFloats` disagrees with `AutoPlay`. Set `bAutoPlay` on the **data asset**, never on the material instance - the bake overwrites it |
 | Clip changes snap | No pose match table, or it went stale on a re-bake and is being ignored. Right-click the species → **Validate Data** says which, then **Flock → Build Pose Match Table** |
+| Animation still steppy with Interpolate on | Only one of the two halves is set. The material instance needs **Interpolate** and the species needs **Interpolate Frames** |
 | Wrong clip plays | An index taken from your source list rather than the enabled sequences |
 | Every bird moves identically | **Random Start Phase** off on Idle |
 | Birds standing in the air | Nothing under the volume to trace against, or the ground is too steep for **Min Ground Normal Z**. `LogFlock` warns |
