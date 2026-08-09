@@ -44,25 +44,8 @@ Assign your bird a material you're willing to modify, then on it set:
 
 Insert **`MF_FlockBoneAnimation`** between `MakeMaterialAttributes` and the `MaterialAttributes` output.
 
-It is a drop-in replacement for the AnimToTexture plugin's `MF_BoneAnimation` - same inputs, same
-parameters, filled by the same bake - with one addition: an **Interpolate** static switch for blending
-between adjacent frames. Left off it costs nothing whatsoever, compiling to the same vertex shader
-instruction count as the engine function, so there is no reason to use the engine one instead.
-
-> [!IMPORTANT]
-> Interpolation needs **both halves**, and each is useless alone. Tick **Interpolate** on the material
-> instance, *and* tick **Interpolate Frames** on the species. With only the material the shader blends two
-> identical frames: full cost, no change on screen. With only the species nothing reads the frame it sends.
-> <br>
-> <br>Leave both off unless the animation reads as steppy. It does nothing for clip changes - that is
-> [pose matching](./FLOCK.md#pose-matching).
-
-**On cost:** it is all vertex shader, about eight extra texture fetches per vertex, and on the crow it takes
-956 instructions to 1440. Vertex cost does not shrink with distance, so it is paid on every bird drawn with
-that material, in the base pass and again in every shadow depth pass. Dropping the data asset to **two**
-bone influences instead of four costs 992 with interpolation against the 956 you already pay without it, so
-that trade is usually the answer rather than going without. Full table in
-[Blending](./FLOCK.md#frame-interpolation).
+> [!NOTE]
+> A drop-in for the AnimToTexture plugin's `MF_BoneAnimation` that adds optional blending between adjacent frames, free unless you turn it on: [Frame interpolation](./FLOCK.md#frame-interpolation).
 
 <img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
 
