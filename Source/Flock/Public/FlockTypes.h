@@ -399,9 +399,13 @@ struct FFlockFlightParams
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.0"))
 	float JitterFrequency = 1.7f;
 
-	/** Roll into turns, in degrees per unit of normalised turn rate. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.0"))
+	/** Degrees of roll at the hardest turn the bird can make, scaled down for gentler ones. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.0", ForceUnits="deg"))
 	float BankScale = 35.f;
+
+	/** How quickly roll reaches the angle the current turn asks for. Low is languid; high snaps. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.1"))
+	float BankInterpSpeed = 6.f;
 
 	/**
 	 * Turning this hard swaps Fly for the Bank clip on that side, where the species maps one. Capped by Turn

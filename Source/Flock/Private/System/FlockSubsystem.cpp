@@ -1470,6 +1470,22 @@ void UFlockSubsystem::ResolveSlotRequests()
 		State->StateTime = 0.f;
 		State->bSlotRequested = false;
 
+		// This is the normal way into a landing, so it owns starting the clip: the flight processor only
+		// does that on the two paths that come down without a slot.
+		if (FFlockAnimFragment* Anim = EntityManager->GetFragmentDataPtr<FFlockAnimFragment>(Request.Entity))
+		{
+			const FFlockSpeciesConfigFragment* Config =
+				EntityManager->GetConstSharedFragmentDataPtr<FFlockSpeciesConfigFragment>(Request.Entity);
+
+			if (Config && Config->GetClip(EFlockClip::Land).bValid)
+			{
+				const UWorld* ClipWorld = GetWorld();
+
+				Anim->Clip = EFlockClip::Land;
+				Anim->ClipStartTime = ClipWorld ? ClipWorld->GetTimeSeconds() : 0.f;
+			}
+		}
+
 		EntityManager->RemoveTagFromEntity(Request.Entity, FFlockFlyingTag::StaticStruct());
 		EntityManager->AddTagToEntity(Request.Entity, FFlockLandingTag::StaticStruct());
 	}

@@ -187,6 +187,49 @@ namespace FlockProcessorPrivate
 		return true;
 	}
 
+	/** Below this, horizontal velocity is too small for its direction to mean anything. */
+	static constexpr float MinHeadingSpeed = 5.f;
+
+	/**
+	 * Heading and lean, and nothing else.
+	 *
+	 * No pitch: a bird's climb and dive are in its animation, and taking pitch from the velocity fights that
+	 * and snaps the moment the velocity turns vertical. Roll is applied about the direction of travel rather
+	 * than as a rotator component, so it reads as a bank whichever axis the mesh was authored down.
+	 */
+	static FQuat MakeFacing(const FVector& TravelDir, float MeshYawOffset, float RollDegrees)
+	{
+		const FQuat Yaw = FRotator(0.f, TravelDir.Rotation().Yaw + MeshYawOffset, 0.f).Quaternion();
+
+		return FMath::IsNearlyZero(RollDegrees, 0.01f)
+			? Yaw
+			: FQuat(TravelDir.GetSafeNormal(), FMath::DegreesToRadians(RollDegrees)) * Yaw;
+	}
+
+	/** The way the bird is already facing, as a direction, for when its velocity cannot say. */
+	static FVector HeldHeading(const FTransform& Transform, float MeshYawOffset)
+	{
+		return FRotator(0.f, Transform.GetRotation().Rotator().Yaw - MeshYawOffset, 0.f).Vector();
+	}
+
+	/**
+	 * How far a bird leans to hold a turn at this speed and this rate of turn, capped at MaxDegrees.
+	 *
+	 * The real relationship rather than a fraction of the turn-rate limit, so a wide slow orbit leans a
+	 * little and a hard break leans a lot, without either being tuned for.
+	 */
+	static float CoordinatedBank(float Speed2D, float YawRateDegrees, float MaxDegrees)
+	{
+		constexpr float GravityCmS2 = 980.f;
+
+		// Negated because the roll is applied as a rotation about the direction of travel, where a positive
+		// angle lifts the right wing.
+		const float Lean = -FMath::RadiansToDegrees(
+			FMath::Atan2(Speed2D * FMath::DegreesToRadians(YawRateDegrees), GravityCmS2));
+
+		return FMath::Clamp(Lean, -MaxDegrees, MaxDegrees);
+	}
+
 	/**
 	 * Bank, glide or level flight, for a bird already cruising. Both alternatives are optional, so anything
 	 * unmapped falls back to Fly and a species with neither never changes clip here.
@@ -936,6 +979,19 @@ void UFlockTakeoffProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			Velocities[*It].Velocity = FVector3f(Direction * Speed);
 			Transform.SetLocation(Position + Direction * Speed * Dt);
 
+			// Turns to face the way it is leaving over the course of the launch. Left until the bird is
+			// airborne, the first frame of flight snaps it round to whatever direction it happened to pick.
+			const FVector FlatLaunch(Direction.X, Direction.Y, 0.f);
+			if (FlatLaunch.SizeSquared() > FMath::Square(0.05f))
+			{
+				const FRotator Facing = Transform.GetRotation().Rotator();
+				const float Wanted = FlatLaunch.Rotation().Yaw + Config.MeshYawOffset;
+
+				Transform.SetRotation(
+					FRotator(0.f, FMath::FixedTurn(Facing.Yaw, Wanted, F.TurnRateDegrees * Dt), 0.f)
+						.Quaternion());
+			}
+
 			if (Alpha >= 1.f)
 			{
 				UE::Flock::SetBirdState(Context, Context.GetEntity(*It), State, EFlockBirdState::Flying);
@@ -1071,30 +1127,35 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 			Velocities[*It].Velocity = FVector3f(NewVelocity);
 			Transform.SetLocation(Position + NewVelocity * Dt);
 
-			// Face travel, banking into the turn by how much the heading changed.
-			if (!NewVelocity.IsNearlyZero())
+			// Face travel, leaning into the turn.
 			{
-				FRotator Facing = NewVelocity.Rotation();
-				Facing.Yaw += Config.MeshYawOffset;
+				const FVector Flat(NewVelocity.X, NewVelocity.Y, 0.f);
+				const float Speed2D = Flat.Size();
+				const bool bHasHeading = Speed2D > FlockProcessorPrivate::MinHeadingSpeed;
 
-				const FVector OldDir = Velocity.GetSafeNormal();
-				const FVector NewDir = NewVelocity.GetSafeNormal();
-				const float TurnSign = FMath::Sign(FVector::CrossProduct(OldDir, NewDir).Z);
-				const float TurnAmount = FMath::Clamp(
-					(1.f - FVector::DotProduct(OldDir, NewDir)) * 20.f, 0.f, 1.f);
+				float TargetRoll = 0.f;
+				if (bHasHeading)
+				{
+					const FVector OldFlat(Velocity.X, Velocity.Y, 0.f);
+					const float YawRate = Dt > 0.f
+							&& OldFlat.SizeSquared() > FMath::Square(FlockProcessorPrivate::MinHeadingSpeed)
+						? FRotator::NormalizeAxis(Flat.Rotation().Yaw - OldFlat.Rotation().Yaw) / Dt
+						: 0.f;
 
-				Facing.Roll = -TurnSign * TurnAmount * F.BankScale;
-				Transform.SetRotation(Facing.Quaternion());
+					TargetRoll = FlockProcessorPrivate::CoordinatedBank(Speed2D, YawRate, F.BankScale);
 
-				// Yaw rises turning right, so a positive delta is a right bank. Measured flat: a climb is not
-				// a turn.
-				const float SignedYaw = FRotator::NormalizeAxis(
-					FVector(NewDir.X, NewDir.Y, 0.f).Rotation().Yaw
-					- FVector(OldDir.X, OldDir.Y, 0.f).Rotation().Yaw);
-				const float YawRate = Dt > 0.f ? FMath::Abs(SignedYaw) / Dt : 0.f;
+					FlockProcessorPrivate::SelectFlightClip(Config, F, Anims[*It], Now, FMath::Abs(YawRate),
+						YawRate > 0.f, -NewVelocity.Z);
+				}
 
-				FlockProcessorPrivate::SelectFlightClip(Config, F, Anims[*It], Now, YawRate, SignedYaw > 0.f,
-					-NewVelocity.Z);
+				State.BankRoll = FMath::FInterpTo(State.BankRoll, TargetRoll, Dt, F.BankInterpSpeed);
+
+				// Climbing straight up has no heading to face, so it keeps the one it has.
+				const FVector Heading = bHasHeading
+					? Flat : FlockProcessorPrivate::HeldHeading(Transform, Config.MeshYawOffset);
+
+				Transform.SetRotation(
+					FlockProcessorPrivate::MakeFacing(Heading, Config.MeshYawOffset, State.BankRoll));
 			}
 
 			// Come down once it has been up long enough, the flock is calm, and either it never wanted to
@@ -1219,6 +1280,7 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.Alert = 0.f;
 				State.RefractoryTime = P.LandedCooldown;
 
+				State.BankRoll = 0.f;
 				State.bJustLanded = false;
 				State.bSlotRequested = false;
 				State.bVoluntaryMove = false;
@@ -1257,10 +1319,16 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			Velocities[*It].Velocity = FVector3f(Velocity);
 			Transform.SetLocation(Position + Velocity * Dt);
 
-			FRotator Facing = Velocity.Rotation();
-			Facing.Yaw += Config.MeshYawOffset;
-			Facing.Roll = 0.f;
-			Transform.SetRotation(Facing.Quaternion());
+			// The last of a descent is straight down, which has no heading to take.
+			const FVector Flat(Velocity.X, Velocity.Y, 0.f);
+			const FVector Heading = Flat.Size() > FlockProcessorPrivate::MinHeadingSpeed
+				? Flat : FlockProcessorPrivate::HeldHeading(Transform, Config.MeshYawOffset);
+
+			// Levels out over the descent rather than snapping upright the moment it commits to landing.
+			State.BankRoll = FMath::FInterpTo(State.BankRoll, 0.f, Dt, Config.Flight.BankInterpSpeed);
+
+			Transform.SetRotation(
+				FlockProcessorPrivate::MakeFacing(Heading, Config.MeshYawOffset, State.BankRoll));
 		}
 	});
 }

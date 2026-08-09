@@ -13,7 +13,7 @@ version of both.
 | | |
 |---|---|
 | `SKM_Crow` | 13 bones, 832 tris, 1 LOD, no morph targets |
-| 18 sequences | all 30 fps, all on the one skeleton |
+| 21 sequences | all 30 fps, all on the one skeleton |
 | `M_Flock` | an existing base colour texture and roughness parameter |
 
 Everything below was produced from those three.
@@ -47,7 +47,7 @@ the output. `MI_Crow_VAT` was made from it.
 | Source Skeletal Mesh | `SKM_Crow` |
 | Output Path | `/Game/Characters/Creatures/Crow/Flock` |
 | Asset Name | `Crow` |
-| Clips | all 18 sequences |
+| Clips | all 21 sequences |
 | Sample Rate | `30` |
 | Bone Material Instances | `MI_Crow_VAT` |
 
@@ -68,23 +68,29 @@ It produced `SM_Crow_VAT`, `TX_Crow_BonePosition`, `TX_Crow_BoneRotation`, `TX_C
 What this bake's indices came out as. **They are per-bake** - the order is the data asset's enabled
 sequence list, not the order the clips were added, so re-check them after any re-bake.
 
-| Index | Mapped to | |
-|---|---|---|
-| 0 | **Fly** | loop |
-| 1 | **Idle** | loop, **Random Start Phase** |
-| 2 | **Land** | one-shot |
-| 14 | **Take Off** | one-shot |
-| 15 | **Turn Left** | loop |
-| 16 | **Turn Right** | loop |
-| 17 | **Walk** | loop |
+| Index | Source | Mapped to | |
+|---|---|---|---|
+| 0 | `CrowFly` | **Fly** | loop |
+| 1 | `CrowIdle` | **Idle** | loop, **Random Start Phase** |
+| 2 | `CrowLand` | **Land** | one-shot |
+| 14 | `CrowTakeOff` | **Take Off** | one-shot |
+| 15 | `CrowTurn_L` | **Turn Left** | loop |
+| 16 | `CrowTurn_R` | **Turn Right** | loop |
+| 17 | `CrowWalk` | **Walk** | loop |
+| 18 | `CrowTakeOffLoop` | **Take Off Loop** | loop |
+| 19 | `CrowLandLoop` | **Land Loop** | loop |
+| 20 | `CrowGlide` | **Glide** | loop |
 
-The five optional clips - **Take Off Loop**, **Land Loop**, **Glide**, **Bank Left** and **Bank Right** -
-were all left unmapped, so the crow uses **Fly** for the rest of a climb, the rest of a descent, and every
-turn. Worth authoring if you have the animations; a glide in particular is most of what a descent looks like.
+Indices 3-13 are the rest breaks, `CrowRB_` prefixed.
+
+**Bank Left** and **Bank Right** are the only clips left unmapped. The bird leans through its transform
+instead, which is continuous rather than an on/off pose - see [Flying](FLOCK.md#flying).
+
+The last three were added after the first bake and **appended** to the sequence list, so nothing before
+them moved. Adding through a multi-select drop instead sorts alphabetically and would have shifted
+everything - the reason to check the indices either way.
 
 <!-- TODO(screenshot): the species' Clips map, expanded -->
-
-Indices 3-13 are the rest breaks.
 
 ---
 
@@ -97,7 +103,7 @@ are a treat.
 |---|---|---|---|
 | Preen | 9 | 3.0 | mirrors 10 |
 | Head Cock | 6 | 3.0 | mirrors 7 |
-| Caw | 4 | 2.0 | **Audio Trigger** `Caw`, plus a **Sound Delay** to put it where the beak opens |
+| Caw | 4 | 25.0 | `MS_Crow_Caw` in **Sounds** |
 | Wing Shuffle | 11 | 1.5 | |
 | Ground Peck | 5 | 1.5 | |
 | Body Shake | 3 | 1.0 | |
@@ -115,16 +121,26 @@ getting 0.4 each.
 ## 5. Sound
 
 `MSS_FlockBed_Crow` in **Flock Bed**, taking `Distance`, `BirdCount`, `Alert` and `AirborneRatio` and
-deciding its own mix, with the `Caw` trigger coming off the rest break above.
+deciding its own mix. The caw is a **Sound** on its rest break rather than a bed trigger, so it comes from
+the bird that opened its beak.
 
 <!-- TODO(screenshot): MSS_FlockBed_Crow's graph, or at least its input parameters -->
 <!-- TODO(screenshot): the species' audio and VFX slots -->
 
-<!-- TODO(jared): note any Perception, Flight or Idle values you moved off default, and why -->
+---
+
+## 6. Tuning moved off default
+
+| | | |
+|---|---|---|
+| **Takeoff Time** | `1.0` | `CrowTakeOff` runs 0.93s. Under that the bird is already flying when the clip ends and **Take Off Loop** never gets a turn |
+| Caw **Weight** | `25` | crows caw constantly; at the 2.0 it started on it was a rarity |
+
+<!-- TODO(jared): add any Perception, Flight or Idle values you moved off default, and why -->
 
 ---
 
-## 6. In the level
+## 7. In the level
 
 A **Flock Volume** sized to the area the birds should own, at ground height, with **Species** set and
 **Spawn Count** raised until it read right.

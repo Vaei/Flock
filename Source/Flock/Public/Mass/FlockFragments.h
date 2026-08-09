@@ -73,6 +73,14 @@ struct FFlockStateFragment : public FMassFragment
 	/** Counts down to the next voluntary move. */
 	float RestlessTimer = 0.f;
 
+	/**
+	 * How far the bird is currently leaning, in degrees.
+	 *
+	 * Held here rather than read back off the transform: pulling one Euler angle out of a quaternion is
+	 * unstable near a vertical heading, and a descending bird is exactly that.
+	 */
+	float BankRoll = 0.f;
+
 	/** Counts down to the next idle glance, and how much of that glance is left to turn. */
 	float GlanceTimer = 0.f;
 	float GlanceRemaining = 0.f;

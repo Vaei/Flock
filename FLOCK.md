@@ -42,6 +42,12 @@ neither is the length of a clip. So a one-shot that ends early hands over rather
 frame: to its loop clip if there is one, and to **Fly** if there is not. A **Take Off** clip that is
 *longer* than the launch plays out in full - a one-shot is never cut mid-pose, because VAT cannot blend.
 
+> [!IMPORTANT]
+> **Take Off Loop only ever plays if Takeoff Time outlasts the Take Off clip.** Below that the bird is
+> already flying by the time the one-shot ends, so the bridge goes straight to **Fly** and the loop is dead
+> data. The default 0.35s launch is shorter than most takeoff animations. **Land Loop** has no such
+> problem: a descent is always long.
+
 **Land is a flare, not a touchdown.** It starts when the bird commits to coming down, which is above and
 usually away from where it lands, so most of the descent is the bridging clip. Touchdown snaps to **Idle**.
 
@@ -354,9 +360,22 @@ away-from-threat, then eased to **Takeoff Speed** over **Takeoff Time** rather t
 
 Airborne birds steer toward one attractor per flock that sweeps around it at **Attractor Sweep Degrees**,
 at **Cruise Radius** and **Cruise Ceiling**, at **Cruise Speed** and **Turn Rate Degrees**, with
-**Cohesion Weight** against per-bird **Jitter Amplitude** / **Jitter Frequency** and **Bank Scale** roll
-from the turn. That one moving point is what makes a flock wheel: **no bird ever looks at another bird**, so
-the cost is flat in flock size.
+**Cohesion Weight** against per-bird **Jitter Amplitude** / **Jitter Frequency**. That one moving point is
+what makes a flock wheel: **no bird ever looks at another bird**, so the cost is flat in flock size.
+
+Birds roll into their turns by the angle it would actually take to hold the turn at their speed, eased in at
+**Bank Interp Speed** and capped at **Bank Scale**. So a wide slow orbit leans a little and a hard break
+leans hard, with neither tuned for, and the angle is the same at any frame rate. **Bank Scale** is a
+ceiling, not the angle: lower it to keep birds level, raise it to let a hard turn lay right over.
+
+A bird only banks from *turning*. Going down is not turning, and a descent steep enough to have no heading
+at all holds the heading it had rather than deriving a meaningless one from a near-vertical velocity.
+
+> [!TIP]
+> If a bank clip is only the fly clip with a static roll on it, do not author it. The roll above is
+> continuous, proportional and eases; a clip's is a fixed angle that snaps on and off, and cannot ease
+> because it loops. Author **Bank Left**/**Right** for a genuinely different pose - wings swept, tail
+> fanned - and set **Bank Scale** to `0` if you do, so the two do not stack.
 
 While cruising, the clip follows what the bird is doing: **Bank Left**/**Right** past **Bank Clip Yaw
 Rate**, else **Glide** past **Glide Descent Rate**, else **Fly**. A clip that has started holds until well
