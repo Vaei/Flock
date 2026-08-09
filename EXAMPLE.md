@@ -20,6 +20,10 @@ Everything below was produced from those three.
 
 <!-- TODO(screenshot): the crow's content folder, before the bake -->
 
+### Full Animation Set
+
+[Crow.webm](https://github.com/user-attachments/assets/b780ff2a-714d-4bbd-99eb-1978606823d5)
+
 ---
 
 ## 1. Material
