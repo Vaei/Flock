@@ -44,6 +44,11 @@ Assign your bird a material you're willing to modify, then on it set:
 
 Insert `MF_BoneAnimation` between `MakeMaterialAttributes` and the `MaterialAttributes` output.
 
+> [!TIP]
+> `MF_FlockBoneAnimation`, in this plugin, is a drop-in for it that adds an **Interpolate** static switch
+> for blending between adjacent frames. Off it is free - the same shader instruction count as the engine
+> function. See [Blending](./FLOCK.md#frame-interpolation).
+
 <img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
 
 ### 2. Species

@@ -266,22 +266,32 @@ bird's own animation, so the same numbers mean the same thing on a crow and on a
 
 ### Frame interpolation
 
-Not free, off by default, and it needs a material that cooperates.
+Not free, off by default, and it takes both a species setting and a material that reads it.
 
-**Interpolate Frames** makes each bird ask for the frame after the one it is on, in the third per-instance
-custom data float, with the fraction of the way between the two left on the first. A material that reads
-that float blends them; one that does not never looks at it, so turning this on against the stock
-`MF_BoneAnimation` changes nothing at all.
+Use **`MF_FlockBoneAnimation`** in place of `MF_BoneAnimation`. Same inputs, same parameters, one extra:
+an **Interpolate** static switch, off by default. Off, it compiles to the same 956 vertex shader
+instructions the engine function does - not similar, the same, because the switch removes the branch
+entirely. On, the crow measures 1440, so **the whole feature costs +51% of the vertex shader and nothing
+at all when unused**.
 
-**Interpolate Max Tier** is how far out it is asked for. Past that tier a bird sends whole frames with no
-fraction, leaving the blend weight at zero, so a material written with a branch does no extra work for a
-bird nobody can make out anyway.
+Then set **Interpolate Frames** on the species. Each bird asks for the frame after the one it is on, in
+the third per-instance custom data float, with the fraction of the way between the two left on the first.
+Both halves are needed: the setting without the material changes nothing, and the material without the
+setting is handed two identical frames.
 
-The cost is a second set of bone texture fetches per vertex, in the vertex shader, paid in the base pass
-and in every shadow depth pass. It buys smoothness at 30 fps playback and under a slowed **Play Rate**. It
-does nothing for a clip change, which is pose matching's job.
+**Interpolate Max Tier** is how far out it is asked for. Past that tier a bird sends whole frames and gets
+the same image it always did.
 
-`flock.Interpolate` overrides it: `0` whole frames, `1` on at every tier.
+> [!NOTE]
+> The tier limit changes what a distant bird *looks like*, not what it costs. A material static switch is
+> per material, not per instance, so a shader compiled to interpolate does the work for every bird drawn
+> with it. Skipping the work per bird would need a dynamic branch, which means replacing the whole sampling
+> chain with a Custom node.
+
+It buys smoothness at 30 fps playback and under a slowed **Play Rate**. It does nothing for a clip change,
+which is pose matching's job, so try it only if the animation itself still reads as steppy.
+
+`flock.Interpolate` overrides the species setting: `0` whole frames, `1` on at every tier.
 
 ---
 
@@ -697,7 +707,7 @@ never written to.
 | Birds all move identically | **Random Start Phase** is off on the Idle mapping |
 | Clip changes still snap | No pose match table on the species, or it is stale and being ignored. Validate the species, then Build Pose Match Table |
 | A clip opens on a pose unrelated to the one it replaced | The table was built with **Velocity Weight** at zero, so it matched the shape and not the direction |
-| Interpolate Frames does nothing | The bird's material does not read the third custom data float. It is a material feature; the species only decides which birds ask for it |
+| Interpolate Frames does nothing | The material is still `MF_BoneAnimation`, or `MF_FlockBoneAnimation`'s **Interpolate** switch is off on the instance. Both halves are needed |
 | Birds fly or walk sideways | **Mesh Yaw Offset** does not match art that faces something other than +X |
 | Birds standing in the air | Nothing under the volume to trace, or the ground is steeper than **Min Ground Normal Z**. `LogFlock` warns |
 | Birds float or sink | **Snap To Ground** off puts them on the plane through the volume's centre, not its floor |

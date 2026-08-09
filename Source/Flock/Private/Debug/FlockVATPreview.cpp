@@ -7,6 +7,8 @@
 #include "FlockStats.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "System/FlockRenderPool.h"
 
 AFlockVATPreview::AFlockVATPreview()
 {
@@ -40,9 +42,14 @@ void AFlockVATPreview::RebuildInstances()
 
 	Instances->SetStaticMesh(Mesh);
 
-	// Frame mode: two floats, matching FAnimToTextureFrameData. Must agree with the material's AutoPlay
-	// switch being off, or the shader reads the wrong slots and freezes on the bind pose.
-	Instances->SetNumCustomDataFloats(2);
+	// The same layout the render pool writes: Frame, PrevFrame, NextFrame. Must agree with the material's
+	// AutoPlay switch being off, or the shader reads the wrong slots and freezes on the bind pose.
+	Instances->SetNumCustomDataFloats(FlockCustomDataFloats);
+
+	for (int32 Slot = 0; Slot < Mesh->GetStaticMaterials().Num(); ++Slot)
+	{
+		Instances->SetMaterial(Slot, MaterialOverride);
+	}
 
 	const int32 Count = CountX * CountY;
 	Phases.Reserve(Count);
@@ -87,15 +94,17 @@ void AFlockVATPreview::Tick(float DeltaSeconds)
 		return;
 	}
 
-	CustomData.SetNumUninitialized(Count * 2);
+	CustomData.SetNumUninitialized(Count * FlockCustomDataFloats);
 
 	if (HoldFrame >= 0.f && bHoldFrameIsAbsolute)
 	{
 		const float Absolute = FMath::Clamp(HoldFrame, 0.f, static_cast<float>(AnimData->NumFrames));
 		for (int32 Index = 0; Index < Count; ++Index)
 		{
-			CustomData[Index * 2 + 0] = Absolute;
-			CustomData[Index * 2 + 1] = Absolute;
+			CustomData[Index * FlockCustomDataFloats + 0] = bInterpolate ? Absolute : FMath::FloorToFloat(Absolute);
+			CustomData[Index * FlockCustomDataFloats + 1] = CustomData[Index * FlockCustomDataFloats + 0];
+			CustomData[Index * FlockCustomDataFloats + 2] = bInterpolate
+				? FMath::FloorToFloat(Absolute) + 1.f : CustomData[Index * FlockCustomDataFloats + 0];
 		}
 
 		FLOCK_SCOPE(RenderFlush);
@@ -123,10 +132,16 @@ void AFlockVATPreview::Tick(float DeltaSeconds)
 		// Texture row N is animation frame N. The bake reserves an extra row for the reference pose but the
 		// frames are not shifted by it, so no offset belongs here: adding one plays each clip's successor's
 		// first frame at the end of every loop.
-		const float Frame = Range.StartFrame + Local;
+		const float Frame = Range.StartFrame + (bInterpolate ? Local : FMath::FloorToFloat(Local));
 
-		CustomData[Index * 2 + 0] = Frame;
-		CustomData[Index * 2 + 1] = Frame;
+		const float NextLocal = bLoop
+			? FMath::Fmod(FMath::FloorToFloat(Local) + 1.f, NumClipFrames)
+			: FMath::Min(FMath::FloorToFloat(Local) + 1.f, NumClipFrames - 1.f);
+
+		CustomData[Index * FlockCustomDataFloats + 0] = Frame;
+		CustomData[Index * FlockCustomDataFloats + 1] = Frame;
+		CustomData[Index * FlockCustomDataFloats + 2] = bInterpolate
+			? Range.StartFrame + NextLocal : Frame;
 	}
 
 	{

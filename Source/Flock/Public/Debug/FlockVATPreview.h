@@ -8,6 +8,7 @@
 
 class UAnimToTextureDataAsset;
 class UInstancedStaticMeshComponent;
+class UMaterialInterface;
 
 /**
  * Drop-in harness for eyeballing a baked vertex animation before any of the flock simulation exists.
@@ -31,6 +32,17 @@ public:
 
 	UPROPERTY(EditAnywhere, Category="Preview")
 	bool bLoop = true;
+
+	/**
+	 * Blend between the two frames either side of where the clip has reached, the way a bird with
+	 * Interpolate Frames set does. Needs a material that reads the third custom data float.
+	 */
+	UPROPERTY(EditAnywhere, Category="Preview")
+	bool bInterpolate = false;
+
+	/** Overrides the mesh's own material, for A/B-ing one against another without editing either. */
+	UPROPERTY(EditAnywhere, Category="Preview")
+	TObjectPtr<UMaterialInterface> MaterialOverride = nullptr;
 
 	UPROPERTY(EditAnywhere, Category="Preview", meta=(ClampMin="0.0"))
 	float PlayRate = 1.f;
@@ -74,7 +86,7 @@ private:
 	/** Per-instance phase offset in seconds. */
 	TArray<float> Phases;
 
-	/** Flat pairs of Frame and PrevFrame, reused so the tick allocates nothing. */
+	/** Flat runs of FlockCustomDataFloats per instance, reused so the tick allocates nothing. */
 	TArray<float> CustomData;
 
 	float ElapsedTime = 0.f;
