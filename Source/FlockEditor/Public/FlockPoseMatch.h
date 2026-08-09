@@ -10,7 +10,7 @@ class UFlockSpeciesData;
  * Builds a species' pose match table: for every baked frame, the frame of each baked animation whose pose is
  * closest to it.
  *
- * Nothing blends one baked pose into the next, so a change of clip is a cut. Which frame it cuts to is the
+ * One clip never blends into another, so a change of clip is a cut. Which frame it cuts to is the
  * only control there is over how hard that reads, and answering it offline costs one table lookup at
  * runtime instead of a second set of texture fetches in the vertex shader.
  */

@@ -73,8 +73,8 @@ Content Browser → **Miscellaneous → Data Asset → Flock Species Data**, nam
 > Sample Rate must be your animations' actual frame rate
 
 > [!IMPORTANT]
-> **Build Pose Match Table is what stops your clip changes snapping.** Nothing blends one baked pose into
-> another, so a bird changing clip cuts from one texture row to another. The table records, for every baked
+> **Build Pose Match Table is what stops your clip changes snapping.** One clip never blends into another,
+> so a bird changing clip cuts from one texture row to another. The table records, for every baked
 > frame, which frame of each animation is the closest pose to it, and a bird entering a looping clip opens
 > it there instead of at its first frame. It costs a second pass over your clips at bake time, about 40 KB
 > on the species, and nothing at runtime.

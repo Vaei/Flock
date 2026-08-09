@@ -271,8 +271,8 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 	/**
 	 * Begins a clip and decides which of its frames to begin on. The one place a bird changes clip.
 	 *
-	 * Nothing blends one baked pose into another, so the frame a clip opens on is all that stands between a
-	 * change of clip and a visible snap. Where the species has a pose match table, a looping clip opens on
+	 * One clip never blends into another, so the frame a clip opens on is all that stands between a change of
+	 * clip and a visible snap. Where the species has a pose match table, a looping clip opens on
 	 * whichever of its frames is closest to the pose being left. A one-shot always opens on its first frame:
 	 * entering a launch or a touchdown part way through would cut off the half that makes it read.
 	 *
@@ -373,7 +373,7 @@ struct FFlockSpeciesConfigFragment : public FMassConstSharedFragment
 	 * Whether the bird's current clip will tolerate being replaced this frame.
 	 *
 	 * Clips not marked bMustComplete can go at any time. One that is waits for the end of a cycle, because
-	 * VAT cannot blend and swapping mid-pose is a visible snap.
+	 * clips do not blend into each other and swapping mid-pose is a visible snap.
 	 */
 	bool CanLeaveClip(const FFlockAnimFragment& Anim, float Now) const
 	{

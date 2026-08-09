@@ -8,7 +8,7 @@ Setup, troubleshooting basics and profiling are in [`README.md`](README.md). A w
 | [Species](#species) | one kind of bird: its baked mesh, its clips, its tuning |
 | [Baking](#baking) | making that mesh and its animation textures, and re-making them |
 | [Preview](#preview) | playing a baked clip in the viewport, without PIE |
-| [Blending](#blending) | there is none, and the two things that stand in for it |
+| [Blending](#blending) | clips cut rather than blend, and the two things that soften it |
 | [Blocking volumes](#blocking-volumes) | keeping a flock out of the inside of a building |
 | [Flocks](#flocks) | the volume, where birds are placed, and what state they start in |
 | [Perches](#perches) | slots on any actor, reserved so two birds never claim one branch |
@@ -241,9 +241,13 @@ Check both feature levels before trusting a bake. The vertex shader budget is ti
 
 ## Blending
 
-**Nothing blends one baked pose into another.** A frame is a row of a texture, a clip change is a cut from
-one row to another, and playback steps in whole 30ths of a second. Two things soften that, and they are
-independent of each other.
+**One clip never blends into another.** A frame is a row of a texture and a clip change is a cut from one
+row to another, so where that cut lands is the only control there is over how hard it reads. Separately,
+playback steps in whole 30ths of a second.
+
+Two things address those, and they are independent. **Pose matching** picks the frame a clip opens on, which
+is the clip change. **Frame interpolation** smooths playback within a clip. Neither blends one clip into the
+next, and nothing here does.
 
 ### Pose matching
 
@@ -563,8 +567,8 @@ Three things fill the time between takeoffs, under **Idle** on the species.
 A bird holding a perch slot never walks - it would be stepping off a branch and leaving a reserved perch
 stood empty.
 
-All three yield instantly to a real alert, and none can interrupt a clip mid-pose. VAT has no blending, so
-a clip cut short is a visible snap.
+All three yield instantly to a real alert, and none can interrupt a clip mid-pose. Clips do not blend into
+each other, so one cut short is a visible snap.
 
 > [!WARNING]
 > Walking never traces. A bird holds the height it was placed at, so keep **Walk Radius** short on uneven
