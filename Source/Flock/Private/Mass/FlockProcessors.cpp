@@ -1389,6 +1389,16 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			FVector Velocity = FMath::VInterpTo(FVector(Velocities[*It].Velocity), Desired, Dt,
 				F.LandVelocityInterpSpeed);
 
+			// Eased velocity lags where the bird is pointed, which is fine out at the top of a descent and
+			// wrong at the bottom of one: the lag carries it past the spot and it sinks through the ground
+			// before turning back up. So the easing is faded out over the approach, leaving the last of it
+			// tracking the spot exactly.
+			const float Converge = FMath::GetMappedRangeValueClamped(
+				FVector2f(F.LandArriveDistance, FMath::Max(F.LandArriveDistance + 1.f, F.LandApproachHeight)),
+				FVector2f(1.f, 0.f), Distance);
+
+			Velocity = FMath::Lerp(Velocity, Desired, Converge);
+
 			if (Runtime.HasBlockers())
 			{
 				FVector Probe = Position + Velocity * Dt;

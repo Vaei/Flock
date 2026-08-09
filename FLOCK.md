@@ -324,7 +324,9 @@ to matter on a slow wingbeat seen up close, and not at all on a distant flock.
 part of why a flock costs what it does. So a bird cannot discover the inside of a roof, and left alone a
 spooked flock will climb straight up through one.
 
-**Flock Blocking Volume** is how it gets told. Place one where birds should not go.
+**Flock Blocking Volume** is how it gets told. Place one where birds should not go, from
+**Flock → Spawn Blocking Box** or **Spawn Blocking Sphere**, then scale it over whatever they should stay
+out of. Nothing else needs setting.
 
 | | |
 |---|---|

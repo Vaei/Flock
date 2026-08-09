@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "FlockTypes.h"
 #include "Modules/ModuleManager.h"
 
 class FFlockEditorModule : public IModuleInterface
@@ -26,6 +27,9 @@ private:
 
 	/** Drops a flock volume into the open level, with a species assigned if one can be found. */
 	static void SpawnFlockVolumeInCurrentLevel();
+
+	/** Drops somewhere birds will not fly into the open level, sized to be visible and then adjusted. */
+	static void SpawnBlockingVolumeInCurrentLevel(EFlockBlockerShape Shape);
 
 	/** Re-bakes every perch component in the open level. */
 	static void RebuildAllPerchesInLevel();

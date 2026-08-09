@@ -5,6 +5,7 @@
 #include "AnimToTextureDataAsset.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "Actors/FlockBlockingVolume.h"
 #include "Actors/FlockVolume.h"
 #include "Components/FlockPerchComponent.h"
 #include "EngineUtils.h"
@@ -72,6 +73,44 @@ FVector FFlockEditorModule::GetSpawnLocation()
 		}
 	}
 	return FVector::ZeroVector;
+}
+
+void FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel(EFlockBlockerShape Shape)
+{
+	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	const bool bBox = Shape == EFlockBlockerShape::Box;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Name = MakeUniqueObjectName(World->GetCurrentLevel(), AFlockBlockingVolume::StaticClass(),
+		bBox ? TEXT("FlockBlockingBox") : TEXT("FlockBlockingSphere"));
+	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
+
+	AFlockBlockingVolume* Volume = World->SpawnActor<AFlockBlockingVolume>(
+		AFlockBlockingVolume::StaticClass(), FTransform(GetSpawnLocation()), SpawnParams);
+	if (!Volume)
+	{
+		return;
+	}
+
+	Volume->Shape = Shape;
+	Volume->SetActorLabel(bBox ? TEXT("FlockBlockingBox") : TEXT("FlockBlockingSphere"));
+
+	// Applies Shape to which component is drawn, so the one that was asked for is the one shown.
+	Volume->PostEditChange();
+
+	GEditor->SelectNone(/*bNoteSelectionChange*/ false, /*bDeselectBSPSurfs*/ true);
+	GEditor->SelectActor(Volume, /*bInSelected*/ true, /*bNotify*/ true);
+
+	FNotificationInfo Info(LOCTEXT("SpawnedBlockingVolume",
+		"Spawned a blocking volume. Scale it over whatever birds should not fly into; nothing else needs "
+		"setting."));
+	Info.ExpireDuration = 8.f;
+	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
 void FFlockEditorModule::SpawnFlockVolumeInCurrentLevel()
@@ -351,6 +390,24 @@ TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
 		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnFlockVolumeInCurrentLevel),
 			FCanExecuteAction::CreateStatic(&FFlockEditorModule::CanSpawnPreview)));
 	Menu.EndSection();
+
+	Menu.AddMenuEntry(
+		LOCTEXT("SpawnBlockingBox", "Spawn Blocking Box in Current Level"),
+		LOCTEXT("SpawnBlockingBoxTip",
+			"Somewhere birds will not fly. Birds have no collision of any kind, so this is how a flock is "
+			"told a building is there. Scale it over what they should stay out of."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ClassIcon.BoxComponent")),
+		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
+			EFlockBlockerShape::Box)));
+
+	Menu.AddMenuEntry(
+		LOCTEXT("SpawnBlockingSphere", "Spawn Blocking Sphere in Current Level"),
+		LOCTEXT("SpawnBlockingSphereTip",
+			"The same, rounded. Better for a tree or anything birds should curve around rather than square "
+			"off against."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ClassIcon.SphereComponent")),
+		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
+			EFlockBlockerShape::Sphere)));
 
 	Menu.BeginSection(TEXT("FlockSettings"), LOCTEXT("FlockSettingsSection", "Settings"));
 	Menu.AddMenuEntry(
