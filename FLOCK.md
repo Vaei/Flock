@@ -9,6 +9,7 @@ Setup, troubleshooting basics and profiling are in [`README.md`](README.md). A w
 | [Baking](#baking) | making that mesh and its animation textures, and re-making them |
 | [Preview](#preview) | playing a baked clip in the viewport, without PIE |
 | [Blending](#blending) | there is none, and the two things that stand in for it |
+| [Blocking volumes](#blocking-volumes) | keeping a flock out of the inside of a building |
 | [Flocks](#flocks) | the volume, where birds are placed, and what state they start in |
 | [Perches](#perches) | slots on any actor, reserved so two birds never claim one branch |
 | [Being noticed](#being-noticed) | what alarms birds, and how hard |
@@ -48,6 +49,11 @@ one-shot is never cut mid-pose. See [Blending](#blending) for what happens at th
 > already flying by the time the one-shot ends, so the bridge goes straight to **Fly** and the loop is dead
 > data. The default 0.35s launch is shorter than most takeoff animations. **Land Loop** has no such
 > problem: a descent is always long.
+
+Committing to a landing eases rather than snaps: both the speed and the direction change through
+**Land Velocity Interp Speed**, the turn onto the approach is limited by **Turn Rate Degrees** like any
+other turn, and the bird arrives on the frame it would otherwise overshoot, so it is never placed onto the
+spot from a distance.
 
 A landing runs **Land Loop → Land → Idle**. **Land Loop** covers the whole descent, however long it takes.
 **Land** starts the moment the feet are down and plays out on the ground, and only when it finishes does the
@@ -269,10 +275,26 @@ bird's own animation, so the same numbers mean the same thing on a crow and on a
 Not free, off by default, and it takes both a species setting and a material that reads it.
 
 Use **`MF_FlockBoneAnimation`** in place of `MF_BoneAnimation`. Same inputs, same parameters, one extra:
-an **Interpolate** static switch, off by default. Off, it compiles to the same 956 vertex shader
-instructions the engine function does - not similar, the same, because the switch removes the branch
-entirely. On, the crow measures 1440, so **the whole feature costs +51% of the vertex shader and nothing
-at all when unused**.
+an **Interpolate** static switch, off by default. Off it compiles to the same instruction count the engine
+function does - not similar, the same, because the switch removes the second sample path entirely.
+
+Measured on the crow, 18 bones and 418 vertices:
+
+| | Interpolate off | Interpolate on |
+|---|---|---|
+| **Four** bone influences | 956 | 1440 (+51%) |
+| **Two** bone influences | 726 | 992 |
+
+The pixel shader does not change; all of it is vertex shader, and roughly eight extra texture fetches per
+vertex. **That cost is per vertex, so it does not shrink with distance** the way a pixel cost does: it is
+paid on every bird drawn with the material, in the base pass and again in every shadow depth pass. Bird
+count and triangle count are what multiply it.
+
+> [!TIP]
+> **Two bone influences pays for interpolation.** 992 against the 956 you are already paying at four, for
+> the same smoothness plus the interpolation. On an 18-bone bird two influences is very hard to tell apart
+> - most vertices only meaningfully belong to one bone anyway - and `NumBoneInfluences` on the data asset
+> is the switch. Try that before deciding interpolation is too expensive.
 
 Then set **Interpolate Frames** on the species. Each bird asks for the frame after the one it is on, in
 the third per-instance custom data float, with the fraction of the way between the two left on the first.
@@ -289,9 +311,41 @@ the same image it always did.
 > chain with a Custom node.
 
 It buys smoothness at 30 fps playback and under a slowed **Play Rate**. It does nothing for a clip change,
-which is pose matching's job, so try it only if the animation itself still reads as steppy.
+which is pose matching's job, so try it only if the animation itself still reads as steppy - and expect it
+to matter on a slow wingbeat seen up close, and not at all on a distant flock.
 
 `flock.Interpolate` overrides the species setting: `0` whole frames, `1` on at every tier.
+
+---
+
+## Blocking volumes
+
+**Birds have no collision of any kind.** No traces, no queries, nothing touching physics, which is a good
+part of why a flock costs what it does. So a bird cannot discover the inside of a roof, and left alone a
+spooked flock will climb straight up through one.
+
+**Flock Blocking Volume** is how it gets told. Place one where birds should not go.
+
+| | |
+|---|---|
+| **Shape** | Box or Sphere. Between them they cover a room, a stairwell and a tree, and an exact shape would cost more than the problem is worth |
+| **Box Extent** / **Sphere Radius** | scaled by the actor, so it sizes in the viewport like anything else. A non-uniform scale on a sphere takes the largest axis rather than squashing it |
+| **Avoid Margin** | how far outside the surface birds start turning away. Nothing gets through either way - this is the difference between a flock that curves around a building and one that pulls up short against the wall of it |
+| **Enabled** | off leaves it in the level doing nothing |
+
+Takeoff, cruise and descent all respect them. Avoidance is two halves: a steering push away, which is what
+makes a flock look like it knows the building is there, and a hard placement outside the surface, which is
+what makes "never inside" true rather than merely likely. **Blocker Avoid Strength** on the species scales
+the steering half; the placement half is not optional.
+
+Cost is `MaxFlockBlockers` (6) shapes per flock, chosen nearest-first by the broadphase from however many
+are in the level, so per-bird cost is flat in how many volumes exist. `flock.Debug.Perception 3` draws the
+ones a flock currently holds, with their margins.
+
+> [!NOTE]
+> They keep birds out of a volume; they do not stop one being *sent* into one. A perch slot or a flock
+> volume placed inside a blocker still gets used, and the bird will sit on the surface trying to reach it.
+> Blockers are for the space birds fly through, not for fixing where they were told to go.
 
 ---
 
@@ -710,6 +764,8 @@ never written to.
 | Interpolate Frames does nothing | The material is still `MF_BoneAnimation`, or `MF_FlockBoneAnimation`'s **Interpolate** switch is off on the instance. Both halves are needed |
 | Birds fly or walk sideways | **Mesh Yaw Offset** does not match art that faces something other than +X |
 | Birds standing in the air | Nothing under the volume to trace, or the ground is steeper than **Min Ground Normal Z**. `LogFlock` warns |
+| Birds fly through a building | No **Flock Blocking Volume** around it, or it is further from the flock centre than six others - only that many are kept per flock. `flock.Debug.Perception 3` draws the ones in use |
+| Birds hover against a wall | A perch slot or the flock volume is inside a blocker, so they are being sent where they cannot go |
 | Birds float or sink | **Snap To Ground** off puts them on the plane through the volume's centre, not its floor |
 | One wrong frame per loop | `Frame` offset past the clip's end, sampling the next clip's first frame. `Frame` maps directly onto the baked index |
 | Playback is noise | sRGB, mips or compression changed on a baked texture. The bake sets these; leave them |

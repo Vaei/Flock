@@ -55,8 +55,14 @@ instruction count as the engine function, so there is no reason to use the engin
 > identical frames: full cost, no change on screen. With only the species nothing reads the frame it sends.
 > <br>
 > <br>Leave both off unless the animation reads as steppy. It does nothing for clip changes - that is
-> [pose matching](./FLOCK.md#pose-matching) - and on the crow it adds 51% to the vertex shader. See
-> [Blending](./FLOCK.md#frame-interpolation).
+> [pose matching](./FLOCK.md#pose-matching).
+
+**On cost:** it is all vertex shader, about eight extra texture fetches per vertex, and on the crow it takes
+956 instructions to 1440. Vertex cost does not shrink with distance, so it is paid on every bird drawn with
+that material, in the base pass and again in every shadow depth pass. Dropping the data asset to **two**
+bone influences instead of four costs 992 with interpolation against the 956 you already pay without it, so
+that trade is usually the answer rather than going without. Full table in
+[Blending](./FLOCK.md#frame-interpolation).
 
 <img width="1068" height="271" alt="image" src="https://github.com/user-attachments/assets/04ae2f91-960a-41b0-a1f1-cf1976062e7e" />
 
@@ -130,6 +136,7 @@ In order of likelihood.
 | Wrong clip plays | An index taken from your source list rather than the enabled sequences |
 | Every bird moves identically | **Random Start Phase** off on Idle |
 | Birds standing in the air | Nothing under the volume to trace against, or the ground is too steep for **Min Ground Normal Z**. `LogFlock` warns |
+| Birds fly up through a roof | Birds have no collision at all. Put a **Flock Blocking Volume** there - see [Blocking volumes](./FLOCK.md#blocking-volumes) |
 | Playback is noise | sRGB, mips or compression changed on a baked texture. The bake sets these; leave them |
 | Birds pop at screen edges | Bounds extensions missing on the static mesh |
 | Bake fails, *"Already used by LightMap"* | Lightmap index equals the data asset's `UVChannel` |

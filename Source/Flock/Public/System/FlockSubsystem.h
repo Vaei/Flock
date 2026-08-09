@@ -9,6 +9,7 @@
 #include "System/FlockRenderPool.h"
 #include "FlockSubsystem.generated.h"
 
+class AFlockBlockingVolume;
 class AFlockRenderActor;
 class UAudioComponent;
 class UFlockDisturbanceComponent;
@@ -285,6 +286,14 @@ public:
 
 	int32 GetNumSources() const { return Sources.Num(); }
 
+	// --- Blocking volumes ------------------------------------------------------------------------------
+
+	/** Somewhere birds will not fly. Registered from the volume's BeginPlay. */
+	void RegisterBlockingVolume(AFlockBlockingVolume* Volume);
+	void UnregisterBlockingVolume(AFlockBlockingVolume* Volume);
+
+	int32 GetNumBlockingVolumes() const { return BlockingVolumes.Num(); }
+
 	/** Bounds the flock's broadphase test. Called by the volume that owns it. */
 	void SetFlockBounds(int32 FlockIndex, const FVector& Centre, float Radius);
 
@@ -320,6 +329,9 @@ private:
 
 	/** Registered alarming actors. Weak, so a despawn self-cleans on the next refresh. */
 	TArray<FFlockSourceRecord> Sources;
+
+	/** Placed volumes birds stay out of. Weak, so one streamed out self-cleans. */
+	TArray<TWeakObjectPtr<AFlockBlockingVolume>> BlockingVolumes;
 
 	/** This frame's live sources, resolved once so the broadphase never re-reads an actor. */
 	struct FResolvedSource

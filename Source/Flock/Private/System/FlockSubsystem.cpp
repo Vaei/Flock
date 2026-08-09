@@ -2,6 +2,7 @@
 
 #include "System/FlockSubsystem.h"
 
+#include "Actors/FlockBlockingVolume.h"
 #include "Actors/FlockRenderActor.h"
 #include "Components/FlockDisturbanceComponent.h"
 #include "Components/FlockPerchComponent.h"
@@ -252,6 +253,25 @@ void UFlockSubsystem::UnregisterSource(AActor* Actor)
 	});
 }
 
+void UFlockSubsystem::RegisterBlockingVolume(AFlockBlockingVolume* Volume)
+{
+	if (!Volume)
+	{
+		return;
+	}
+
+	BlockingVolumes.RemoveAll([](const TWeakObjectPtr<AFlockBlockingVolume>& Weak) { return !Weak.IsValid(); });
+	BlockingVolumes.AddUnique(Volume);
+}
+
+void UFlockSubsystem::UnregisterBlockingVolume(AFlockBlockingVolume* Volume)
+{
+	BlockingVolumes.RemoveAll([Volume](const TWeakObjectPtr<AFlockBlockingVolume>& Weak)
+	{
+		return !Weak.IsValid() || Weak.Get() == Volume;
+	});
+}
+
 void UFlockSubsystem::AddScare(const FVector& Location, float Radius, float Weight, float Duration,
 	float Falloff)
 {
@@ -395,6 +415,59 @@ void UFlockSubsystem::RunBroadphase(float DeltaTime)
 
 		Shared.NumThreats = 0;
 
+		// Nearest first, so a flock with more volumes around it than it can hold keeps the ones it is about to
+		// hit rather than whichever happened to register first.
+		Shared.NumBlockers = 0;
+		{
+			float Furthest = 0.f;
+			int32 FurthestSlot = INDEX_NONE;
+
+			for (const TWeakObjectPtr<AFlockBlockingVolume>& Weak : BlockingVolumes)
+			{
+				const AFlockBlockingVolume* Volume = Weak.Get();
+				if (!Volume || !Volume->bEnabled)
+				{
+					continue;
+				}
+
+				const float Reach = Flock.BoundsRadius + Volume->GetBoundingRadius();
+				const float DistSq = FVector::DistSquared(Volume->GetActorLocation(), Flock.Centre);
+				if (DistSq > FMath::Square(Reach))
+				{
+					continue;
+				}
+
+				int32 Slot = Shared.NumBlockers;
+				if (Slot >= MaxFlockBlockers)
+				{
+					if (FurthestSlot == INDEX_NONE || DistSq >= Furthest)
+					{
+						continue;
+					}
+					Slot = FurthestSlot;
+				}
+				else
+				{
+					++Shared.NumBlockers;
+				}
+
+				Shared.Blockers[Slot] = Volume->MakeBlocker();
+
+				// Re-find the furthest kept, since the one just replaced was it.
+				Furthest = 0.f;
+				FurthestSlot = INDEX_NONE;
+				for (int32 Index = 0; Index < Shared.NumBlockers; ++Index)
+				{
+					const float KeptSq = FVector::DistSquared(FVector(Shared.Blockers[Index].Centre), Flock.Centre);
+					if (KeptSq > Furthest)
+					{
+						Furthest = KeptSq;
+						FurthestSlot = Index;
+					}
+				}
+			}
+		}
+
 		// Cleared here and re-raised by the threat processor, so it lags by a frame rather than latching on.
 		Shared.bAnyAlert = false;
 
@@ -478,6 +551,27 @@ void UFlockSubsystem::RunBroadphase(float DeltaTime)
 			if (FLOCK_DEBUG_PERCEPTION(3))
 			{
 				DrawDebugSphere(DebugWorld, Flock.Centre, Flock.BoundsRadius, 16, FColor::Silver, false, -1.f);
+
+				for (int32 Index = 0; Index < Shared.NumBlockers; ++Index)
+				{
+					const FFlockBlocker& Blocker = Shared.Blockers[Index];
+					const FVector Centre(Blocker.Centre);
+					const FColor Colour(220, 120, 40);
+
+					if (Blocker.Shape == EFlockBlockerShape::Sphere)
+					{
+						DrawDebugSphere(DebugWorld, Centre, Blocker.Extent.X, 16, Colour, false, -1.f);
+						DrawDebugSphere(DebugWorld, Centre, Blocker.Extent.X + Blocker.Margin, 16,
+							FColor(120, 70, 25), false, -1.f);
+					}
+					else
+					{
+						DrawDebugBox(DebugWorld, Centre, FVector(Blocker.Extent),
+							FQuat(Blocker.Rotation), Colour, false, -1.f);
+						DrawDebugBox(DebugWorld, Centre, FVector(Blocker.Extent) + FVector(Blocker.Margin),
+							FQuat(Blocker.Rotation), FColor(120, 70, 25), false, -1.f);
+					}
+				}
 
 				// The attractor is what airborne birds are steering toward, so seeing it explains the wheeling.
 				DrawDebugSphere(DebugWorld, FVector(Shared.AttractorPosition), 60.f, 8, FColor::Cyan, false, -1.f);

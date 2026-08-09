@@ -197,13 +197,114 @@ namespace FlockProcessorPrivate
 	 * and snaps the moment the velocity turns vertical. Roll is applied about the direction of travel rather
 	 * than as a rotator component, so it reads as a bank whichever axis the mesh was authored down.
 	 */
+	/**
+	 * A facing built from the yaw the bird holds rather than from where it is going, so a turn can be rate
+	 * limited and still roll about the direction of travel.
+	 */
+	static FQuat MakeFacingFromYaw(float FacingYaw, float MeshYawOffset, float RollDegrees)
+	{
+		const FQuat Yaw = FRotator(0.f, FacingYaw, 0.f).Quaternion();
+		if (FMath::IsNearlyZero(RollDegrees, 0.01f))
+		{
+			return Yaw;
+		}
+
+		const FVector Axis = FRotator(0.f, FacingYaw - MeshYawOffset, 0.f).Vector();
+		return FQuat(Axis, FMath::DegreesToRadians(RollDegrees)) * Yaw;
+	}
+
 	static FQuat MakeFacing(const FVector& TravelDir, float MeshYawOffset, float RollDegrees)
 	{
-		const FQuat Yaw = FRotator(0.f, TravelDir.Rotation().Yaw + MeshYawOffset, 0.f).Quaternion();
+		return MakeFacingFromYaw(TravelDir.Rotation().Yaw + MeshYawOffset, MeshYawOffset, RollDegrees);
+	}
 
-		return FMath::IsNearlyZero(RollDegrees, 0.01f)
-			? Yaw
-			: FQuat(TravelDir.GetSafeNormal(), FMath::DegreesToRadians(RollDegrees)) * Yaw;
+	/**
+	 * Nearest point on a blocker's surface to Position, and the outward direction there.
+	 *
+	 * Signed: negative means Position is inside. Inside a box the outward direction is the nearest face,
+	 * which is why a bird that does get in leaves by the shortest way rather than through the far side.
+	 */
+	static float BlockerDistance(const FFlockBlocker& Blocker, const FVector& Position, FVector& OutOutward)
+	{
+		if (Blocker.Shape == EFlockBlockerShape::Sphere)
+		{
+			const FVector Radial = Position - FVector(Blocker.Centre);
+			const float Length = Radial.Size();
+			const float Radius = Blocker.Extent.X;
+
+			OutOutward = Length > KINDA_SMALL_NUMBER ? Radial / Length : FVector::UpVector;
+			return Length - Radius;
+		}
+
+		const FQuat Rotation(Blocker.Rotation);
+		const FVector Extent(Blocker.Extent);
+		const FVector Local = Rotation.UnrotateVector(Position - FVector(Blocker.Centre));
+
+		const FVector Overshoot = Local.GetAbs() - Extent;
+		if (Overshoot.GetMax() > 0.f)
+		{
+			const FVector Outside = Overshoot.ComponentMax(FVector::ZeroVector);
+			const FVector LocalOutward(
+				Overshoot.X > 0.f ? FMath::Sign(Local.X) : 0.f,
+				Overshoot.Y > 0.f ? FMath::Sign(Local.Y) : 0.f,
+				Overshoot.Z > 0.f ? FMath::Sign(Local.Z) : 0.f);
+
+			OutOutward = Rotation.RotateVector(
+				(LocalOutward * Outside).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector));
+			return Outside.Size();
+		}
+
+		// Inside, so every component is negative and the closest face is the largest of them.
+		int32 Axis = 0;
+		if (Overshoot.Y > Overshoot[Axis])
+		{
+			Axis = 1;
+		}
+		if (Overshoot.Z > Overshoot[Axis])
+		{
+			Axis = 2;
+		}
+
+		FVector LocalOutward = FVector::ZeroVector;
+		LocalOutward[Axis] = Local[Axis] >= 0.f ? 1.f : -1.f;
+
+		OutOutward = Rotation.RotateVector(LocalOutward);
+		return Overshoot[Axis];
+	}
+
+	/**
+	 * Keeps a bird out of its flock's blockers.
+	 *
+	 * Two halves, and both are needed. The steering half is what makes a flock look like it knows the
+	 * building is there; the positional half is what guarantees it never ends up inside one, which steering
+	 * alone cannot promise at any finite turn rate.
+	 */
+	static FVector AvoidBlockers(const FFlockRuntimeSharedFragment& Runtime, float Strength, FVector& Position)
+	{
+		FVector Steer = FVector::ZeroVector;
+
+		for (int32 Index = 0; Index < Runtime.NumBlockers; ++Index)
+		{
+			const FFlockBlocker& Blocker = Runtime.Blockers[Index];
+
+			FVector Outward;
+			const float Distance = BlockerDistance(Blocker, Position, Outward);
+
+			if (Distance < 0.f)
+			{
+				// A hair outside, so the next frame's test does not read as still inside.
+				Position += Outward * (-Distance + 1.f);
+				Steer += Outward * Strength;
+				continue;
+			}
+
+			if (Blocker.Margin > 0.f && Distance < Blocker.Margin)
+			{
+				Steer += Outward * (Strength * (1.f - Distance / Blocker.Margin));
+			}
+		}
+
+		return Steer;
 	}
 
 	/** The way the bird is already facing, as a direction, for when its velocity cannot say. */
@@ -957,8 +1058,21 @@ void UFlockTakeoffProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			const float Alpha = FMath::Clamp(State.StateTime / FMath::Max(0.01f, F.TakeoffTime), 0.f, 1.f);
 			const float Speed = FMath::InterpEaseOut(0.f, F.TakeoffSpeed, Alpha, 2.f);
 
-			Velocities[*It].Velocity = FVector3f(Direction * Speed);
-			Transform.SetLocation(Position + Direction * Speed * Dt);
+			// A launch is the one time a bird reliably heads into a ceiling, so the blockers get a say even
+			// though nothing else about the climb steers.
+			FVector Launch = Direction * Speed;
+			FVector Climbed = Position + Launch * Dt;
+
+			if (Runtime.HasBlockers())
+			{
+				const FVector Steer = FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength,
+					Climbed);
+
+				Launch = (Launch + Steer * Speed).GetSafeNormal(1.e-4f, Direction) * Speed;
+			}
+
+			Velocities[*It].Velocity = FVector3f(Launch);
+			Transform.SetLocation(Climbed);
 
 			// Turns to face the way it is leaving over the course of the launch. Left until the bird is
 			// airborne, the first frame of flight snaps it round to whatever direction it happened to pick.
@@ -1098,6 +1212,15 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 				Desired += Push * F.SeparationStrength;
 			}
 
+			// Steered around before the turn limit, so avoiding a building costs a bird the same wide arc as
+			// any other change of direction rather than letting it pivot on the spot.
+			FVector Moved = Position;
+			if (Runtime.HasBlockers())
+			{
+				Desired += FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength, Moved)
+					* F.CruiseSpeed;
+			}
+
 			// Turn-rate limited, so nothing snaps direction.
 			const FVector NewVelocity = Velocity.IsNearlyZero()
 				? Desired
@@ -1105,7 +1228,17 @@ void UFlockFlightProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 					Dt, F.TurnRateDegrees) * F.CruiseSpeed;
 
 			Velocities[*It].Velocity = FVector3f(NewVelocity);
-			Transform.SetLocation(Position + NewVelocity * Dt);
+
+			// Integrated from wherever the push-out left it, then pushed out again: one frame of travel can
+			// cross a thin volume outright, and the second test is what makes "never inside" true rather
+			// than merely likely.
+			Moved += NewVelocity * Dt;
+			if (Runtime.HasBlockers())
+			{
+				FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength, Moved);
+			}
+
+			Transform.SetLocation(Moved);
 
 			// Face travel, leaning into the turn.
 			{
@@ -1198,6 +1331,9 @@ void UFlockLandingProcessor::ConfigureQueries(const TSharedRef<FMassEntityManage
 	EntityQuery.AddRequirement<FFlockStateFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FFlockAnimFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddConstSharedRequirement<FFlockSpeciesConfigFragment>();
+
+	// Read for the blocking volumes: a descent can be aimed straight through one.
+	EntityQuery.AddSharedRequirement<FFlockRuntimeSharedFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddTagRequirement<FFlockLandingTag>(EMassFragmentPresence::All);
 }
 
@@ -1212,6 +1348,7 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 	EntityQuery.ForEachEntityChunk(Context, [Now, LocalSubsystem](FMassExecutionContext& Context)
 	{
 		const FFlockSpeciesConfigFragment& Config = Context.GetConstSharedFragment<FFlockSpeciesConfigFragment>();
+		const FFlockRuntimeSharedFragment& Runtime = Context.GetSharedFragment<FFlockRuntimeSharedFragment>();
 		const FFlockFlightParams& F = Config.Flight;
 		const FFlockPerception& P = Config.Perception;
 
@@ -1244,7 +1381,26 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			const FVector ToTarget = Target - Position;
 			const float Distance = ToTarget.Size();
 
-			if (Distance <= F.LandArriveDistance && bOverhead)
+			const FVector Direction = Distance > KINDA_SMALL_NUMBER ? ToTarget / Distance : FVector::DownVector;
+
+			// Committing to a landing changes both the speed and the direction the bird wants. Taking either
+			// instantly is the jarring part, so both are eased from whatever it was already doing.
+			const FVector Desired = Direction * F.LandSpeed;
+			FVector Velocity = FMath::VInterpTo(FVector(Velocities[*It].Velocity), Desired, Dt,
+				F.LandVelocityInterpSpeed);
+
+			if (Runtime.HasBlockers())
+			{
+				FVector Probe = Position + Velocity * Dt;
+				const FVector Steer = FlockProcessorPrivate::AvoidBlockers(Runtime, F.BlockerAvoidStrength,
+					Probe);
+
+				Velocity += Steer * F.LandSpeed;
+			}
+
+			// Arrives on the frame it would otherwise overshoot, so the bird is placed exactly once and there
+			// is no final hop onto the spot.
+			if (bOverhead && Velocity.Size() * Dt >= Distance)
 			{
 				Transform.SetLocation(Home);
 
@@ -1293,9 +1449,6 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				continue;
 			}
 
-			const FVector Direction = Distance > KINDA_SMALL_NUMBER ? ToTarget / Distance : FVector::DownVector;
-			const FVector Velocity = Direction * F.LandSpeed;
-
 			Velocities[*It].Velocity = FVector3f(Velocity);
 			Transform.SetLocation(Position + Velocity * Dt);
 
@@ -1307,8 +1460,14 @@ void UFlockLandingProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			// Levels out over the descent rather than snapping upright the moment it commits to landing.
 			State.BankRoll = FMath::FInterpTo(State.BankRoll, 0.f, Dt, Config.Flight.BankInterpSpeed);
 
+			// Rate limited like every other turn. Set from the heading directly, a bird swung round to face
+			// its target the instant it decided to land.
+			const float WantedYaw = Heading.Rotation().Yaw + Config.MeshYawOffset;
+			const float FacingYaw = FMath::FixedTurn(Transform.GetRotation().Rotator().Yaw, WantedYaw,
+				F.TurnRateDegrees * Dt);
+
 			Transform.SetRotation(
-				FlockProcessorPrivate::MakeFacing(Heading, Config.MeshYawOffset, State.BankRoll));
+				FlockProcessorPrivate::MakeFacingFromYaw(FacingYaw, Config.MeshYawOffset, State.BankRoll));
 		}
 	});
 }

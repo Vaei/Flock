@@ -416,6 +416,10 @@ struct FFlockRuntimeSharedFragment : public FMassSharedFragment
 	TStaticArray<FFlockThreat, MaxFlockThreats> Threats;
 	int32 NumThreats = 0;
 
+	/** The blocking volumes near enough to this flock to matter, refreshed by the broadphase. */
+	TStaticArray<FFlockBlocker, MaxFlockBlockers> Blockers;
+	int32 NumBlockers = 0;
+
 	/** Where the flock lives, and the point airborne birds are drawn toward as it sweeps around. */
 	FVector3f Centre = FVector3f::ZeroVector;
 	FVector3f AttractorPosition = FVector3f::ZeroVector;
@@ -446,4 +450,5 @@ struct FFlockRuntimeSharedFragment : public FMassSharedFragment
 	float AlertSum = 0.f;
 
 	bool HasThreats() const { return NumThreats > 0; }
+	bool HasBlockers() const { return NumBlockers > 0; }
 };

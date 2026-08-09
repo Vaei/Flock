@@ -176,6 +176,41 @@ struct FFlockAuthoredSlot
 /** Most threats a flock tracks at once. Bounded so per-bird cost is independent of how many sources exist. */
 inline constexpr int32 MaxFlockThreats = 4;
 
+/** How many blocking volumes one flock can be kept out of at once. */
+inline constexpr int32 MaxFlockBlockers = 6;
+
+UENUM(BlueprintType)
+enum class EFlockBlockerShape : uint8
+{
+	Box,
+	Sphere
+};
+
+/**
+ * A volume birds stay out of, resolved to POD once per frame so the shared fragment can hold it.
+ *
+ * Birds have no collision of any kind, which is what makes them cheap. This is the whole of their world
+ * awareness: enough to keep a flock off the inside of a roof, and nothing more.
+ */
+USTRUCT()
+struct FFlockBlocker
+{
+	GENERATED_BODY()
+
+	FVector3f Centre = FVector3f::ZeroVector;
+
+	/** Box half extents. A sphere takes its radius from X. */
+	FVector3f Extent = FVector3f::ZeroVector;
+
+	/** Box orientation. A sphere ignores it. */
+	FQuat4f Rotation = FQuat4f::Identity;
+
+	/** How far outside the surface birds begin steering away, rather than being stopped at it. */
+	float Margin = 150.f;
+
+	EFlockBlockerShape Shape = EFlockBlockerShape::Box;
+};
+
 /** One alarming thing, as the birds see it. POD; lives in a Mass shared fragment. */
 USTRUCT()
 struct FFlockThreat
@@ -458,8 +493,30 @@ struct FFlockFlightParams
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.0", ForceUnits="cm"))
 	float LandApproachHeight = 250.f;
 
+	/**
+	 * How close to directly above the target counts as lined up, at twice this. Arrival itself is exact: a
+	 * bird lands on the frame it would otherwise overshoot, so there is no final hop onto the spot.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="1.0", ForceUnits="cm"))
 	float LandArriveDistance = 30.f;
+
+	/**
+	 * How quickly a bird that has just committed to landing swings onto its descent.
+	 *
+	 * Committing changes both the speed and the direction it wants, and taking either instantly is a visible
+	 * kink in the flight path. Low is a wide, unhurried turn onto the approach; high is abrupt.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.1"))
+	float LandVelocityInterpSpeed = 2.5f;
+
+	/**
+	 * How hard birds are pushed away from a Flock Blocking Volume they are heading into.
+	 *
+	 * Steering handles it at a distance; being stopped at the surface is the backstop for when steering was
+	 * not enough. Zero still stops them, it just gives no warning.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="0.0"))
+	float BlockerAvoidStrength = 2.f;
 
 	/** How far a bird will look for somewhere to settle. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Flock", meta=(ClampMin="1.0", ForceUnits="cm"))

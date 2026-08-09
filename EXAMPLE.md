@@ -131,7 +131,7 @@ the bird that opened its beak.
 |---|---|---|
 | **Takeoff Time** | `1.0` | `CrowTakeOff` runs 0.93s. Under that the bird is already flying when the clip ends and **Take Off Loop** never gets a turn |
 | **Pose Matching** | defaults | 952 frames x 21 animations, so the table is 40 KB. Built by the bake |
-| **Interpolate** (on `MI_Crow_VAT`) | on | 30 fps playback on a slow wingbeat steps visibly up close. Takes the crow's vertex shader from 956 instructions to 1440 |
+| **Interpolate** (on `MI_Crow_VAT`) | on | 30 fps playback on a slow wingbeat steps visibly up close. Takes the crow's vertex shader from 956 instructions to 1440, all of it per vertex rather than per pixel. Two bone influences instead of four would bring that to 992 |
 | **Interpolate Frames** (species) | on | the other half of it. Without this the material blends two identical frames and the 1440 buys nothing |
 | Caw **Weight** | `25` | crows caw constantly; at the 2.0 it started on it was a rarity |
 
