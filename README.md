@@ -44,12 +44,12 @@ UE5.8+
 
 Everything is one menu, and the bake is automated end to end:
 
-- creates the static mesh, all three textures and the data asset
-- moves the lightmap off the UV channel the bake needs, the most common first-run failure
-- validates every texture before starting, and re-points every material instance afterwards
-- builds the pose match table
-- bakes every perch in the level
-- drops a preview you can scrub in the viewport without entering play
+- Creates the static mesh, all three textures and the data asset
+- Moves the lightmap off the UV channel the bake needs, the most common first-run failure
+- Validates every texture before starting, and re-points every material instance afterwards
+- Builds the pose match table
+- Bakes every perch in the level
+- Drops a preview you can scrub in the viewport without entering play
 
 <img width="321" height="322" alt="Photoshop_2026-08-09_20-36-31" src="https://github.com/user-attachments/assets/a08c0e96-caad-4427-bf8a-3998ea5b90e3" />
 
