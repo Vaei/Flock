@@ -19,7 +19,37 @@ UE5.8+
 
 ## Features
 
-<!-- TODO(features) -->
+- **A whole flock for the cost of one actor** - Mass (ECS) simulation, one instanced mesh draw per flock,
+  animation baked into textures. No actor per bird, no skeletal meshes, no anim blueprints, no runtime traces
+- **Idle behaviour** - rest breaks (preen, caw, shake), dawdling a few steps, glancing about, and moving
+  between perches unprompted, so a settled flock is never a still one
+- **They notice you** - anything can alarm them, scored on how near it is, how fast it is closing and how
+  much it counts for. Perk up, turn to track, then go. Per-bird thresholds, so no two leave at once
+- **Alarm is contagious** - one bird leaving alarms the rest, so a flock cascades instead of switching
+- **A scatter splits** - some relocate far from what frightened them, some wheel overhead and come back once
+  it is calm. The ratio is authored per flock
+- **Reserved perch slots** - no two birds ever claim one branch. Slots from mesh sockets, a spline, a grid or
+  placed by hand, on any actor, landing on the authored rotation
+- **Pose-matched clip changes** - the bake works out which frame of each clip best continues the one being
+  left, so a change of clip does not snap
+- **Per-flock audio and VFX** - one MetaSound bed fed live distance, count, alert and airborne ratio with
+  triggers for cascades, plus a pool of spatialised one-shots. Bursts through one batched Niagara component
+- **Blocking volumes** - a box or sphere birds will not fly into, since they have no collision of their own
+- **Four LOD tiers** - structural, not branched: the tier is a tag, so a distant flock's chunks are never
+  visited at all
+- **No replication** - birds are cosmetic, simulate independently per client, and never run on a dedicated
+  server
+
+### And the tooling to set it up
+
+Everything is one menu, and the bake is automated end to end:
+
+- creates the static mesh, all three textures and the data asset
+- moves the lightmap off the UV channel the bake needs, the most common first-run failure
+- validates every texture before starting, and re-points every material instance afterwards
+- builds the pose match table
+- bakes every perch in the level
+- drops a preview you can scrub in the viewport without entering play
 
 <img width="321" height="322" alt="Photoshop_2026-08-09_20-36-31" src="https://github.com/user-attachments/assets/a08c0e96-caad-4427-bf8a-3998ea5b90e3" />
 
