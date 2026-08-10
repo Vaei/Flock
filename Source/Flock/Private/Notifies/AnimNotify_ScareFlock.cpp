@@ -1,4 +1,4 @@
-// Copyright (c) Jared Taylor. All Rights Reserved
+// Copyright (c) Jared Taylor
 
 #include "Notifies/AnimNotify_ScareFlock.h"
 
