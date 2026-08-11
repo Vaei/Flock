@@ -25,6 +25,8 @@ public class FlockEditor : ModuleRules
 				"SlateCore",
 				"InputCore",
 				"UnrealEd",
+				"PlacementMode",
+				"LevelEditor",
 				"ToolMenus",
 				"Projects",
 				"PropertyEditor",

@@ -2,8 +2,7 @@
 
 > [!IMPORTANT]
 > Bird flocks that idle, notice you, and scatter
-> <br>Mass (ECS) simulation, instanced static meshes, baked
-vertex animation
+> <br>Mass (ECS) simulation, instanced static meshes, baked vertex animation
 > <br>No actors per bird, no skeletal meshes, no anim blueprints, no runtime traces.
 
 UE5.8+
@@ -19,26 +18,17 @@ UE5.8+
 
 ## Features
 
-- **A whole flock for the cost of one actor** - Mass (ECS) simulation, one instanced mesh draw per flock,
-  animation baked into textures. No actor per bird, no skeletal meshes, no anim blueprints, no runtime traces
-- **Idle behaviour** - rest breaks (preen, caw, shake), dawdling a few steps, glancing about, and moving
-  between perches unprompted, so a settled flock is never a still one
-- **They notice you** - anything can alarm them, scored on how near it is, how fast it is closing and how
-  much it counts for. Perk up, turn to track, then go. Per-bird thresholds, so no two leave at once
+- **A whole flock for the cost of one actor** - Mass (ECS) simulation, one instanced mesh draw per flock, animation baked into textures. No actor per bird, no skeletal meshes, no anim blueprints, no runtime traces
+- **Idle behaviour** - rest breaks (preen, caw, shake), dawdling a few steps, glancing about, and moving between perches unprompted, so a settled flock is never a still one
+- **They notice you** - anything can alarm them, scored on how near it is, how fast it is closing and how much it counts for. Perk up, turn to track, then go. Per-bird thresholds, so no two leave at once
 - **Alarm is contagious** - one bird leaving alarms the rest, so a flock cascades instead of switching
-- **A scatter splits** - some relocate far from what frightened them, some wheel overhead and come back once
-  it is calm. The ratio is authored per flock
-- **Reserved perch slots** - no two birds ever claim one branch. Slots from mesh sockets, a spline, a grid or
-  placed by hand, on any actor, landing on the authored rotation
-- **Pose-matched clip changes** - the bake works out which frame of each clip best continues the one being
-  left, so a change of clip does not snap
-- **Per-flock audio and VFX** - one MetaSound bed fed live distance, count, alert and airborne ratio with
-  triggers for cascades, plus a pool of spatialised one-shots. Bursts through one batched Niagara component
+- **A scatter splits** - some relocate far from what frightened them, some wheel overhead and come back once it is calm. The ratio is authored per flock
+- **Reserved perch slots** - no two birds ever claim one branch. Slots from mesh sockets, a spline, a grid or placed by hand, on any actor, landing on the authored rotation
+- **Pose-matched clip changes** - the bake works out which frame of each clip best continues the one being left, so a change of clip does not snap
+- **Per-flock audio and VFX** - one MetaSound bed fed live distance, count, alert and airborne ratio with triggers for cascades, plus a pool of spatialised one-shots. Bursts through one batched Niagara component
 - **Blocking volumes** - a box or sphere birds will not fly into, since they have no collision of their own
-- **Four LOD tiers** - structural, not branched: the tier is a tag, so a distant flock's chunks are never
-  visited at all
-- **No replication** - birds are cosmetic, simulate independently per client, and never run on a dedicated
-  server
+- **Four LOD tiers** - structural, not branched: the tier is a tag, so a distant flock's chunks are never visited at all
+- **No replication** - birds are cosmetic, simulate independently per client, and never run on a dedicated server
 
 ### And the tooling to set it up
 
@@ -109,33 +99,24 @@ Content Browser → **Miscellaneous → Data Asset → Flock Species Data**, nam
 > Sample Rate must be your animations' actual frame rate
 
 > [!IMPORTANT]
-> **Build Pose Match Table is what stops your clip changes snapping.** One clip never blends into another,
-> so a bird changing clip cuts from one texture row to another. The table records, for every baked
-> frame, which frame of each animation is the closest pose to it, and a bird entering a looping clip opens
-> it there instead of at its first frame. It costs a second pass over your clips at bake time, about 40 KB
-> on the species, and nothing at runtime.
+> **Build Pose Match Table is what stops your clip changes snapping.** One clip never blends into another, so a bird changing clip cuts from one texture row to another. The table records, for every baked frame, which frame of each animation is the closest pose to it, and a bird entering a looping clip opens it there instead of at its first frame. It costs a second pass over your clips at bake time, about 40 KB on the species, and nothing at runtime.
 > <br>
-> <br>It is measured against one bake's frame layout, so **a re-bake makes the old one stale** and it is
-> then ignored rather than used wrongly. The bake rebuilds it; if you ever re-bake another way, use
-> **Flock → Build Pose Match Table**, which rebuilds it without touching a texture.
+> <br>It is measured against one bake's frame layout, so **a re-bake makes the old one stale** and it is then ignored rather than used wrongly. The bake rebuilds it; if you ever re-bake another way, use **Flock → Build Pose Match Table**, which rebuilds it without touching a texture.
 
 ### 4. Map the clips
 
-On the species, set **Mesh** to `SM_<Name>_VAT` and **Anim Data** to `DA_<Name>_BoneAnimation`, then fill
-**Clips**. **Idle** is the only one required. Read the indices off `Animations` on the data asset, not off
-the order you typed the clips in.
+On the species, set **Mesh** to `SM_<Name>_VAT` and **Anim Data** to `DA_<Name>_BoneAnimation`, then fill **Clips**. **Idle** is the only one required. Read the indices off `Animations` on the data asset, not off the order you typed the clips in.
 
 > [!CAUTION]
-> Indices follow the **enabled** sequences in data-asset order, and adding animations reorders that list
-> (a multi-select drop sorts alphabetically). **Re-check every mapping after any re-bake.** The failure is
-> silent - birds animate, with the wrong clips.
+> Indices follow the **enabled** sequences in data-asset order, and adding animations reorders that list (a multi-select drop sorts alphabetically). **Re-check every mapping after any re-bake.** The failure is silent - birds animate, with the wrong clips.
 
 Turn **Random Start Phase** on for **Idle**.
 
 ### 5. Fly
 
-**Flock → Spawn Flock Volume in Current Level**, set **Species** and **Spawn Count**, press Play. Walk at
-them.
+Drag a **Flock Volume** out of **Place Actors → Flock**, or use **Flock → Spawn Flock Volume in Current Level** to drop one in front of the camera. Set **Species** and **Spawn Count**, press Play. Walk at them.
+
+Blocking volumes are in the same place, box and sphere.
 
 <!-- TODO(image): birds scattered across a volume, one alert -->
 
@@ -174,8 +155,7 @@ flock.Debug.Slots 2         also which bird holds each one
 flock.PoseMatch 0           clips open on their first frame, to A/B the pose match table
 ```
 
-`Perception 1` is the one to reach for when a clip is wrong: it names the clip on the bird, so a bad index
-shows up without opening the data asset.
+`Perception 1` is the one to reach for when a clip is wrong: it names the clip on the bird, so a bad index shows up without opening the data asset.
 
 Full symptom table in [`FLOCK.md`](./FLOCK.md#troubleshooting).
 
@@ -183,8 +163,7 @@ Full symptom table in [`FLOCK.md`](./FLOCK.md#troubleshooting).
 
 ## Then tune it
 
-Everything is on the species asset except the per-flock mix, which is on the volume. The knobs worth
-reaching for first:
+Everything is on the species asset except the per-flock mix, which is on the volume. The knobs worth reaching for first:
 
 | | |
 |---|---|
@@ -202,8 +181,7 @@ The intervals are deliberately long. Shorten them and a flock reads as agitated 
 
 ## Performance and profiling
 
-`stat flock` in the console, or the **Flock** group in Unreal Insights. Both come from one macro, so they
-can't drift apart.
+`stat flock` in the console, or the **Flock** group in Unreal Insights. Both come from one macro, so they can't drift apart.
 
 | Group | Counters |
 |---|---|
@@ -211,33 +189,21 @@ can't drift apart.
 | Processors | `LOD`, `Threat`, `Decision`, `Idle`, `Takeoff`, `Flight`, `Landing`, `Anim`, `Render` |
 | Counts | `Flocks`, `Birds`, `Sources`, `Instances Written`, and birds per tier (`Near`/`Mid`/`Far`/`Culled`) |
 
-Read the counts alongside the cycles - a cycle figure means nothing without knowing how many birds
-produced it.
+Read the counts alongside the cycles - a cycle figure means nothing without knowing how many birds produced it.
 
-**`Anim` and `Render` reading non-zero is the proof a flock is live.** Nothing in engine-core ticks Mass:
-the only runtime class hosting a processing phase manager ships in the MassGameplay plugin, which this
-project doesn't enable, so Flock runs its own pipeline from the subsystem tick. Those two at zero while
-birds are placed means the processors aren't executing - which looks identical to a query matching
-nothing.
+**`Anim` and `Render` reading non-zero is the proof a flock is live.** Nothing in engine-core ticks Mass: the only runtime class hosting a processing phase manager ships in the MassGameplay plugin, which this project doesn't enable, so Flock runs its own pipeline from the subsystem tick. Those two at zero while birds are placed means the processors aren't executing - which looks identical to a query matching nothing.
 
 ### Actual costs
 
 Roughly in order:
 
-1. **Rendering.** One ISM primitive per flock, two calls per component per frame. Bird count barely moves
-   the CPU; **triangles and overdraw** move the GPU. There's no depth prepass (`r.EarlyZPass=0`), so keep
-   the mesh lean and the material **Opaque**.
-2. **Separation.** O(n²) within a chunk, and the only thing here that isn't flat in flock size.
-   **Separation Max Tier** decides how far out it runs (default **Near**) - the further out, the more it
-   costs and the less anyone can see it.
-3. **Everything else is flat or tag-gated.** Steering never queries neighbours. Threat cost is bounded at
-   four sources per flock regardless of how many exist in the world, and a calm flock's chunks are skipped
-   whole. Culled birds aren't visited.
+1. **Rendering.** One ISM primitive per flock, two calls per component per frame. Bird count barely moves the CPU; **triangles and overdraw** move the GPU. There's no depth prepass (`r.EarlyZPass=0`), so keep the mesh lean and the material **Opaque**.
+2. **Separation.** O(n²) within a chunk, and the only thing here that isn't flat in flock size. **Separation Max Tier** decides how far out it runs (default **Near**) - the further out, the more it costs and the less anyone can see it.
+3. **Everything else is flat or tag-gated.** Steering never queries neighbours. Threat cost is bounded at four sources per flock regardless of how many exist in the world, and a calm flock's chunks are skipped whole. Culled birds aren't visited.
 
 ### Measuring
 
-`flock.Separation 0` / `1` forces separation off, or on at every tier; `-1` (default) leaves it to the
-species. It's a cheat and compiles out of Shipping - the species setting is what ships.
+`flock.Separation 0` / `1` forces separation off, or on at every tier; `-1` (default) leaves it to the species. It's a cheat and compiles out of Shipping - the species setting is what ships.
 
 Everything else is a setting rather than a cvar, under **Project Settings → Game → Flock**:
 
@@ -248,11 +214,9 @@ Everything else is a setting rather than a cvar, under **Project Settings → Ga
 | **Max Birds Total**, **Max Instances Per Component** | the caps |
 | **Enable Flock** | off prices the whole system out, without touching the level |
 
-Bird count itself comes off the volume's **Spawn Count** - raise it on one volume rather than scaling
-everything, so the counters stay attributable.
+Bird count itself comes off the volume's **Spawn Count** - raise it on one volume rather than scaling everything, so the counters stay attributable.
 
-Bakes are traced too (`FFlockBake::PrepareAssets`, `::Bake`, `::AnimationToTexture`) - useful when a dense
-mesh takes a while and you want to know which step.
+Bakes are traced too (`FFlockBake::PrepareAssets`, `::Bake`, `::AnimationToTexture`) - useful when a dense mesh takes a while and you want to know which step.
 
 ## Changelog
 

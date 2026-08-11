@@ -14,8 +14,10 @@
 #include "Editor.h"
 #include "FlockDeveloper.h"
 #include "FlockBakeSettings.h"
+#include "FlockActorFactory.h"
 #include "FlockDetails.h"
 #include "FlockEditorLog.h"
+#include "IPlacementModeModule.h"
 #include "FlockEditorStyle.h"
 #include "FlockPoseMatch.h"
 #include "LevelEditorViewport.h"
@@ -25,6 +27,7 @@
 #include "ISettingsModule.h"
 #include "PropertyEditorModule.h"
 #include "SFlockBakeWindow.h"
+#include "SFlockMenuEntry.h"
 #include "ToolMenus.h"
 #include "Debug/FlockVATPreview.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -33,6 +36,8 @@
 #define LOCTEXT_NAMESPACE "FlockEditor"
 
 DEFINE_LOG_CATEGORY(LogFlockEditor);
+
+static const FName FlockPlacementCategory = TEXT("Flock");
 
 bool FFlockEditorModule::IsToolbarMenuEnabled()
 {
@@ -121,35 +126,7 @@ void FFlockEditorModule::SpawnFlockVolumeInCurrentLevel()
 		return;
 	}
 
-	// Prefer the project default, then a species built on whatever the bake window is pointed at, then the
-	// only species in the project. Anything less certain is left for the user to pick.
-	UFlockSpeciesData* Species = UFlockDeveloperSettings::Get().DefaultSpecies.LoadSynchronous();
-
-	if (!Species)
-	{
-		const IAssetRegistry& AssetRegistry =
-			FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-
-		TArray<FAssetData> Assets;
-		AssetRegistry.GetAssetsByClass(UFlockSpeciesData::StaticClass()->GetClassPathName(), Assets);
-
-		const UAnimToTextureDataAsset* WantedAnimData = UFlockBakeSettings::Get()->Recipe.BoneDataAsset.LoadSynchronous();
-
-		for (const FAssetData& Asset : Assets)
-		{
-			UFlockSpeciesData* Candidate = Cast<UFlockSpeciesData>(Asset.GetAsset());
-			if (Candidate && WantedAnimData && Candidate->AnimData.LoadSynchronous() == WantedAnimData)
-			{
-				Species = Candidate;
-				break;
-			}
-		}
-
-		if (!Species && Assets.Num() == 1)
-		{
-			Species = Cast<UFlockSpeciesData>(Assets[0].GetAsset());
-		}
-	}
+	UFlockSpeciesData* Species = UFlockVolumeFactory::FindDefaultSpecies();
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Name = MakeUniqueObjectName(World->GetCurrentLevel(), AFlockVolume::StaticClass(),
@@ -307,6 +284,44 @@ void FFlockEditorModule::StartupModule()
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFlockEditorModule::RegisterMenus));
 	}
+
+	// The panel builds its items from the actor factories the editor has already instanced, so this
+	// has to wait until the editor exists.
+	if (GEditor)
+	{
+		RegisterPlacement();
+	}
+	else
+	{
+		FCoreDelegates::GetOnPostEngineInit().AddRaw(this, &FFlockEditorModule::RegisterPlacement);
+	}
+}
+
+void FFlockEditorModule::RegisterPlacement()
+{
+	// Get() loads the module; IsAvailable() only reports whether something else has already loaded it,
+	// which nothing has this early, and a category registered into a module that is not there is lost
+	// without a word.
+	IPlacementModeModule& Placement = IPlacementModeModule::Get();
+
+	if (!Placement.RegisterPlacementCategory(FPlacementCategoryInfo(
+			LOCTEXT("PlacementCategory", "Flock"),
+			FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
+			FlockPlacementCategory,
+			TEXT("PMFlock"),
+			45)))
+	{
+		UE_LOG(LogFlockEditor, Warning, TEXT("Could not register the Place Actors category."));
+		return;
+	}
+
+	int32 SortOrder = 0;
+	Placement.RegisterPlaceableItem(FlockPlacementCategory,
+		MakeShared<FPlaceableItem>(*UFlockVolumeFactory::StaticClass(), SortOrder += 10));
+	Placement.RegisterPlaceableItem(FlockPlacementCategory,
+		MakeShared<FPlaceableItem>(*UFlockBlockingBoxFactory::StaticClass(), SortOrder += 10));
+	Placement.RegisterPlaceableItem(FlockPlacementCategory,
+		MakeShared<FPlaceableItem>(*UFlockBlockingSphereFactory::StaticClass(), SortOrder += 10));
 }
 
 void FFlockEditorModule::RegisterMenus()
@@ -338,6 +353,21 @@ void FFlockEditorModule::RegisterMenus()
 	Entry.InsertPosition = FToolMenuInsert(TEXT("NinjaTools"), EToolMenuInsertType::After);
 
 	ToolBar->FindOrAddSection(TEXT("PlayGameExtensions")).AddEntry(Entry);
+}
+
+void FFlockEditorModule::AddPlaceEntry(FMenuBuilder& Menu, UClass* FactoryClass, const FText& Label,
+	const FText& ToolTip, const FSlateIcon& Icon, FExecuteAction OnClicked)
+{
+	UActorFactory* Factory = GEditor ? GEditor->FindActorFactoryByClass(FactoryClass) : nullptr;
+	if (!Factory)
+	{
+		Menu.AddMenuEntry(Label, ToolTip, Icon, FUIAction(OnClicked));
+		return;
+	}
+
+	// A widget rather than a menu entry, because a menu entry cannot be dragged out into the level.
+	Menu.AddWidget(SNew(SFlockMenuEntry, Factory).Label(Label).ToolTip(ToolTip).Icon(Icon),
+		FText::GetEmpty(), true);
 }
 
 TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
@@ -381,33 +411,35 @@ TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
 		FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
 		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::RebuildAllPerchesInLevel),
 			FCanExecuteAction::CreateStatic(&FFlockEditorModule::CanSpawnPreview)));
-	Menu.AddMenuEntry(
-		LOCTEXT("SpawnVolume", "Spawn Flock Volume in Current Level"),
-		LOCTEXT("SpawnVolumeTip",
-			"Drops a flock volume in front of the camera and assigns a species if one can be worked out. "
-			"For real use, subclass the volume as a Blueprint per species instead."),
-		FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
-		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnFlockVolumeInCurrentLevel),
-			FCanExecuteAction::CreateStatic(&FFlockEditorModule::CanSpawnPreview)));
 	Menu.EndSection();
 
-	Menu.AddMenuEntry(
-		LOCTEXT("SpawnBlockingBox", "Spawn Blocking Box in Current Level"),
+	Menu.BeginSection(TEXT("FlockPlace"), LOCTEXT("FlockPlaceSection", "Place"));
+	AddPlaceEntry(Menu, UFlockVolumeFactory::StaticClass(),
+		LOCTEXT("SpawnVolume", "Flock Volume"),
+		LOCTEXT("SpawnVolumeTip",
+			"Where birds live. A species is assigned if one can be worked out. For real use, subclass the "
+			"volume as a Blueprint per species instead."),
+		FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
+		FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnFlockVolumeInCurrentLevel));
+
+	AddPlaceEntry(Menu, UFlockBlockingBoxFactory::StaticClass(),
+		LOCTEXT("SpawnBlockingBox", "Blocking Box"),
 		LOCTEXT("SpawnBlockingBoxTip",
 			"Somewhere birds will not fly. Birds have no collision of any kind, so this is how a flock is "
 			"told a building is there. Scale it over what they should stay out of."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ClassIcon.BoxComponent")),
-		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
-			EFlockBlockerShape::Box)));
+		FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
+			EFlockBlockerShape::Box));
 
-	Menu.AddMenuEntry(
-		LOCTEXT("SpawnBlockingSphere", "Spawn Blocking Sphere in Current Level"),
+	AddPlaceEntry(Menu, UFlockBlockingSphereFactory::StaticClass(),
+		LOCTEXT("SpawnBlockingSphere", "Blocking Sphere"),
 		LOCTEXT("SpawnBlockingSphereTip",
 			"The same, rounded. Better for a tree or anything birds should curve around rather than square "
 			"off against."),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ClassIcon.SphereComponent")),
-		FUIAction(FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
-			EFlockBlockerShape::Sphere)));
+		FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnBlockingVolumeInCurrentLevel,
+			EFlockBlockerShape::Sphere));
+	Menu.EndSection();
 
 	Menu.BeginSection(TEXT("FlockSettings"), LOCTEXT("FlockSettingsSection", "Settings"));
 	Menu.AddMenuEntry(
@@ -430,6 +462,13 @@ TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
 
 void FFlockEditorModule::ShutdownModule()
 {
+	FCoreDelegates::GetOnPostEngineInit().RemoveAll(this);
+
+	if (IPlacementModeModule::IsAvailable())
+	{
+		IPlacementModeModule::Get().UnregisterPlacementCategory(FlockPlacementCategory);
+	}
+
 	FFlockEditorStyle::Unregister();
 
 	if (FPropertyEditorModule* PropertyModule =

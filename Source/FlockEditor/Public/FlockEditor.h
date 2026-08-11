@@ -4,6 +4,8 @@
 
 #include "FlockTypes.h"
 #include "Modules/ModuleManager.h"
+#include "Framework/Commands/UIAction.h"
+#include "Textures/SlateIcon.h"
 
 class FFlockEditorModule : public IModuleInterface
 {
@@ -16,6 +18,13 @@ public:
 private:
 	void RegisterMenus();
 	TSharedRef<SWidget> BuildMenu();
+
+	/** A menu row that can be dragged into the level, falling back to a plain clickable entry. */
+	static void AddPlaceEntry(class FMenuBuilder& Menu, UClass* FactoryClass, const FText& Label,
+		const FText& ToolTip, const FSlateIcon& Icon, FExecuteAction OnClicked);
+
+	/** Adds a category to the Place Actors panel, so a volume can be dragged into the level. */
+	void RegisterPlacement();
 
 	/** Drives the toolbar entry's visibility, so toggling the setting hides it without a restart. */
 	static bool IsToolbarMenuEnabled();

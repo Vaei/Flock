@@ -1,10 +1,8 @@
 # Example: the Crow
 
-The bird the plugin was built against, start to finish. **Its content is not included** - this is a
-reference for what a finished setup looks like, not something to open.
+The bird the plugin was built against, start to finish. **Its content is not included** - this is a reference for what a finished setup looks like, not something to open.
 
-Steps are in [`README.md`](README.md); property meanings are in [`FLOCK.md`](FLOCK.md). This is the filled-in
-version of both.
+Steps are in [`README.md`](README.md); property meanings are in [`FLOCK.md`](FLOCK.md). This is the filled-in version of both.
 
 ---
 
@@ -28,9 +26,7 @@ Everything below was produced from those three.
 
 ## 1. Material
 
-`M_Flock` got **Use Material Attributes**, **Num Customized UVs 1** and **Used with Instanced Static
-Meshes**, its two nodes went into a `MakeMaterialAttributes`, and `MF_FlockBoneAnimation` went between that
-and the output. `MI_Crow_VAT` was made from it, with **Interpolate** ticked.
+`M_Flock` got **Use Material Attributes**, **Num Customized UVs 1** and **Used with Instanced Static Meshes**, its two nodes went into a `MakeMaterialAttributes`, and `MF_FlockBoneAnimation` went between that and the output. `MI_Crow_VAT` was made from it, with **Interpolate** ticked.
 
 <!-- TODO(screenshot): M_Flock's graph, showing MakeMaterialAttributes into MF_FlockBoneAnimation -->
 <!-- TODO(screenshot): the material's details panel, with the three settings ticked -->
@@ -55,8 +51,7 @@ and the output. `MI_Crow_VAT` was made from it, with **Interpolate** ticked.
 
 <!-- TODO(screenshot): the bake window, filled in as above -->
 
-It produced `SM_Crow_VAT`, `TX_Crow_BonePosition`, `TX_Crow_BoneRotation`, `TX_Crow_BoneWeight` and
-`DA_Crow_BoneAnimation`.
+It produced `SM_Crow_VAT`, `TX_Crow_BonePosition`, `TX_Crow_BoneRotation`, `TX_Crow_BoneWeight` and `DA_Crow_BoneAnimation`.
 
 <!-- TODO(screenshot): the Flock folder after the bake -->
 <!-- TODO(screenshot): DA_Crow_BoneAnimation, showing NumBones 18 and the Animations array -->
@@ -65,8 +60,7 @@ It produced `SM_Crow_VAT`, `TX_Crow_BonePosition`, `TX_Crow_BoneRotation`, `TX_C
 
 ## 3. Clips
 
-What this bake's indices came out as. **They are per-bake** - the order is the data asset's enabled
-sequence list, not the order the clips were added, so re-check them after any re-bake.
+What this bake's indices came out as. **They are per-bake** - the order is the data asset's enabled sequence list, not the order the clips were added, so re-check them after any re-bake.
 
 | Index | Source | Mapped to | |
 |---|---|---|---|
@@ -83,8 +77,7 @@ sequence list, not the order the clips were added, so re-check them after any re
 
 Indices 3-13 are the rest breaks, `CrowRB_` prefixed.
 
-**Bank Left** and **Bank Right** are the only clips left unmapped. The bird leans through its transform
-instead, which is continuous rather than an on/off pose - see [Flying](FLOCK.md#flying).
+**Bank Left** and **Bank Right** are the only clips left unmapped. The bird leans through its transform instead, which is continuous rather than an on/off pose - see [Flying](FLOCK.md#flying).
 
 <!-- TODO(screenshot): the species' Clips map, expanded -->
 
@@ -92,8 +85,7 @@ instead, which is continuous rather than an on/off pose - see [Flying](FLOCK.md#
 
 ## 4. Rest breaks
 
-Eleven animations across eight entries, weighted so the small movements are common and the conspicuous ones
-are a treat.
+Eleven animations across eight entries, weighted so the small movements are common and the conspicuous ones are a treat.
 
 | Name | Index | Weight | |
 |---|---|---|---|
@@ -106,8 +98,7 @@ are a treat.
 | Hop | 8 | 0.8 | |
 | Wing Stretch | 12 | 0.4 | mirrors 13 |
 
-A mirrored pair is one entry, so a wing stretch left and right share that 0.4 between them rather than
-getting 0.4 each.
+A mirrored pair is one entry, so a wing stretch left and right share that 0.4 between them rather than getting 0.4 each.
 
 <!-- TODO(screenshot): the Rest Breaks array, collapsed, showing the eight names -->
 <!-- TODO(screenshot): the Caw entry expanded, showing its sounds, trigger and delay -->
@@ -116,9 +107,7 @@ getting 0.4 each.
 
 ## 5. Sound
 
-`MSS_FlockBed_Crow` in **Flock Bed**, taking `Distance`, `BirdCount`, `Alert` and `AirborneRatio` and
-deciding its own mix. The caw is a **Sound** on its rest break rather than a bed trigger, so it comes from
-the bird that opened its beak.
+`MSS_FlockBed_Crow` in **Flock Bed**, taking `Distance`, `BirdCount`, `Alert` and `AirborneRatio` and deciding its own mix. The caw is a **Sound** on its rest break rather than a bed trigger, so it comes from the bird that opened its beak.
 
 <!-- TODO(screenshot): MSS_FlockBed_Crow's graph, or at least its input parameters -->
 <!-- TODO(screenshot): the species' audio and VFX slots -->
@@ -141,8 +130,7 @@ the bird that opened its beak.
 
 ## 7. In the level
 
-A **Flock Volume** sized to the area the birds should own, at ground height, with **Species** set and
-**Spawn Count** raised until it read right.
+A **Flock Volume** sized to the area the birds should own, at ground height, with **Species** set and **Spawn Count** raised until it read right.
 
 <!-- TODO(screenshot): the volume in the viewport, box visible, with its details panel -->
 
