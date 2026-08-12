@@ -651,6 +651,10 @@ void UFlockSubsystem::Tick(float DeltaTime)
 	ResolveSlotRequests();
 	DrainEvents();
 
+#if UE_ENABLE_DEBUG_DRAWING
+	DrainDebugDraw();
+#endif
+
 	SET_DWORD_STAT(STAT_Flock_NumFlocks, Flocks.Num());
 	SET_DWORD_STAT(STAT_Flock_NumBirds, GetNumBirds());
 }
@@ -1130,6 +1134,66 @@ void UFlockSubsystem::WriteInstance(int32 FlockIndex, int32 ComponentIndex, int3
 	Flocks[FlockIndex].RenderPool.WriteInstance(ComponentIndex, InstanceIndex, WorldTransform, Frame, NextFrame);
 }
 
+void UFlockSubsystem::AccumulateCounts(FFlockRuntimeSharedFragment& Shared, int32 NumSeen, int32 NumAirborne,
+	float AlertSum)
+{
+	FScopeLock Lock(&CountsLock);
+
+	Shared.NumSeen += NumSeen;
+	Shared.NumAirborne += NumAirborne;
+	Shared.AlertSum += AlertSum;
+}
+
+#if UE_ENABLE_DEBUG_DRAWING
+void UFlockSubsystem::QueueDebugBird(const FVector& Position, float Alert, EFlockBirdState State, EFlockClip Clip,
+	float Frame)
+{
+	FScopeLock Lock(&DebugDrawLock);
+	PendingDebugBirds.Add({ Position, Alert, Frame, State, Clip });
+}
+
+void UFlockSubsystem::DrainDebugDraw()
+{
+	check(IsInGameThread());
+
+	TArray<FDebugBird> Birds;
+	{
+		FScopeLock Lock(&DebugDrawLock);
+		Birds = MoveTemp(PendingDebugBirds);
+		PendingDebugBirds.Reset();
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	static const UEnum* ClipEnum = StaticEnum<EFlockClip>();
+	static const UEnum* StateEnum = StaticEnum<EFlockBirdState>();
+
+	for (const FDebugBird& Bird : Birds)
+	{
+		const FColor Colour = Bird.State == EFlockBirdState::Alert ? FColor::Yellow : FColor::Green;
+
+		DrawDebugPoint(World, Bird.Position + FVector(0.f, 0.f, 20.f), 8.f, Colour, false, -1.f);
+
+		// Alert as a rising bar, so the accumulator is visible rather than inferred.
+		DrawDebugLine(World, Bird.Position + FVector(0.f, 0.f, 25.f),
+			Bird.Position + FVector(0.f, 0.f, 25.f + Bird.Alert * 40.f), Colour, false, -1.f, 0, 2.f);
+
+		// The clip and the frame it is on. Without these, a clip that was never selected and one selected but
+		// not advancing look identical from the outside, and the only way to tell them apart is guesswork.
+		DrawDebugString(World, Bird.Position + FVector(0.f, 0.f, 72.f),
+			FString::Printf(TEXT("%s | %s %.0f"),
+				*StateEnum->GetNameStringByValue(static_cast<int64>(Bird.State)),
+				*ClipEnum->GetNameStringByValue(static_cast<int64>(Bird.Clip)),
+				Bird.Frame),
+			nullptr, Colour, 0.f);
+	}
+}
+#endif
+
 void UFlockSubsystem::DispatchTakeOff(int32 FlockIndex, const FVector& Position)
 {
 	FScopeLock Lock(&EventLock);
@@ -1413,6 +1477,9 @@ void UFlockSubsystem::RequestSlot(FMassEntityHandle Entity, int32 FlockIndex, co
 
 void UFlockSubsystem::OccupySlot(int32 SlotIndex, FMassEntityHandle Entity)
 {
+	// Called from a processor, and the test against ReservedBy has to hold across the write that follows it.
+	FScopeLock Lock(&SlotLock);
+
 	if (Slots.IsValidIndex(SlotIndex) && Slots[SlotIndex].ReservedBy == Entity)
 	{
 		Slots[SlotIndex].State = EFlockSlotState::Occupied;
@@ -1421,6 +1488,8 @@ void UFlockSubsystem::OccupySlot(int32 SlotIndex, FMassEntityHandle Entity)
 
 void UFlockSubsystem::ReleaseSlot(int32 SlotIndex, FMassEntityHandle Entity)
 {
+	FScopeLock Lock(&SlotLock);
+
 	if (Slots.IsValidIndex(SlotIndex) && Slots[SlotIndex].ReservedBy == Entity)
 	{
 		Slots[SlotIndex].State = EFlockSlotState::Free;

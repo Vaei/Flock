@@ -1624,9 +1624,7 @@ void UFlockRenderProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 		return;
 	}
 
-	UWorld* World = EntityManager.GetWorld();
-
-	EntityQuery.ForEachEntityChunk(Context, [LocalSubsystem, World](FMassExecutionContext& Context)
+	EntityQuery.ForEachEntityChunk(Context, [LocalSubsystem](FMassExecutionContext& Context)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = Context.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FFlockAnimFragment> Anims = Context.GetFragmentView<FFlockAnimFragment>();
@@ -1635,16 +1633,21 @@ void UFlockRenderProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 		const TConstArrayView<FFlockStateFragment> States = Context.GetFragmentView<FFlockStateFragment>();
 		FFlockRuntimeSharedFragment& Runtime = Context.GetMutableSharedFragment<FFlockRuntimeSharedFragment>();
 
+		// Summed per chunk and committed once at the end: a flock's chunks share one fragment between them.
+		int32 NumSeen = 0;
+		int32 NumAirborne = 0;
+		float AlertSum = 0.f;
+
 		for (FMassExecutionContext::FEntityIterator It = Context.CreateEntityIterator(); It; ++It)
 		{
 			const FFlockStateFragment& State = States[*It];
 
-			++Runtime.NumSeen;
-			Runtime.AlertSum += State.Alert;
+			++NumSeen;
+			AlertSum += State.Alert;
 			if (State.State != EFlockBirdState::Grounded && State.State != EFlockBirdState::Alert
 				&& State.State != EFlockBirdState::Perched)
 			{
-				++Runtime.NumAirborne;
+				++NumAirborne;
 			}
 
 			const FFlockRenderFragment& Render = Renders[*It];
@@ -1658,30 +1661,14 @@ void UFlockRenderProcessor::Execute(FMassEntityManager& EntityManager, FMassExec
 				Transform, Anims[*It].Frame, Anims[*It].NextFrame);
 
 #if UE_ENABLE_DEBUG_DRAWING
-			if (World && FLOCK_DEBUG_PERCEPTION(1))
+			if (FLOCK_DEBUG_PERCEPTION(1))
 			{
-				const FVector Base = Transform.GetLocation();
-				const FColor Colour = State.State == EFlockBirdState::Alert ? FColor::Yellow : FColor::Green;
-
-				DrawDebugPoint(World, Base + FVector(0.f, 0.f, 20.f), 8.f, Colour, false, -1.f);
-
-				// Alert as a rising bar, so the accumulator is visible rather than inferred.
-				DrawDebugLine(World, Base + FVector(0.f, 0.f, 25.f),
-					Base + FVector(0.f, 0.f, 25.f + State.Alert * 40.f), Colour, false, -1.f, 0, 2.f);
-
-				// The clip and the frame it is on. Without these, a clip that was never selected and one
-				// selected but not advancing look identical from the outside, and the only way to tell them
-				// apart is guesswork.
-				static const UEnum* ClipEnum = StaticEnum<EFlockClip>();
-				static const UEnum* StateEnum = StaticEnum<EFlockBirdState>();
-				DrawDebugString(World, Base + FVector(0.f, 0.f, 72.f),
-					FString::Printf(TEXT("%s | %s %.0f"),
-						*StateEnum->GetNameStringByValue(static_cast<int64>(States[*It].State)),
-						*ClipEnum->GetNameStringByValue(static_cast<int64>(Anims[*It].Clip)),
-						Anims[*It].Frame),
-					nullptr, Colour, 0.f);
+				LocalSubsystem->QueueDebugBird(Transform.GetLocation(), State.Alert, State.State,
+					Anims[*It].Clip, Anims[*It].Frame);
 			}
 #endif
 		}
+
+		LocalSubsystem->AccumulateCounts(Runtime, NumSeen, NumAirborne, AlertSum);
 	});
 }

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+// UE_ENABLE_DEBUG_DRAWING gates a member below, so it has to be defined for every includer or the layout differs.
+#include "EngineDefines.h"
 #include "MassEntityManager.h"
 #include "MassProcessingTypes.h"
 #include "MassSubsystemBase.h"
@@ -16,6 +18,7 @@ class UFlockDisturbanceComponent;
 class UFlockPerchComponent;
 class UFlockSpeciesData;
 class UMassProcessor;
+struct FFlockRuntimeSharedFragment;
 
 /**
  * A bird began a clip worth reacting to. Game thread, broadcast from the subsystem's own tick.
@@ -206,6 +209,19 @@ public:
 	/** Called by the render processor, once per bird per tick. */
 	void WriteInstance(int32 FlockIndex, int32 ComponentIndex, int32 InstanceIndex,
 		const FTransform& WorldTransform, float Frame, float NextFrame);
+
+	/**
+	 * Folds one chunk's tallies into the flock they belong to.
+	 *
+	 * A flock's chunks may be visited on separate workers, so the render pass sums into locals and commits once
+	 * per chunk through here rather than incrementing the shared fragment per bird.
+	 */
+	void AccumulateCounts(FFlockRuntimeSharedFragment& Shared, int32 NumSeen, int32 NumAirborne, float AlertSum);
+
+#if UE_ENABLE_DEBUG_DRAWING
+	/** Queues one bird's debug draw. Drawing itself is game thread only, so the render pass cannot do it. */
+	void QueueDebugBird(const FVector& Position, float Alert, EFlockBirdState State, EFlockClip Clip, float Frame);
+#endif
 
 	// --- Presentation ----------------------------------------------------------------------------------
 
@@ -417,6 +433,26 @@ private:
 
 	/** Fires this frame's queued VFX and audio. Game thread only. */
 	void DrainEvents();
+
+	/** Guards the per-flock tallies the render pass commits into. */
+	FCriticalSection CountsLock;
+
+#if UE_ENABLE_DEBUG_DRAWING
+	struct FDebugBird
+	{
+		FVector Position = FVector::ZeroVector;
+		float Alert = 0.f;
+		float Frame = 0.f;
+		EFlockBirdState State = EFlockBirdState::Grounded;
+		EFlockClip Clip = EFlockClip::Idle;
+	};
+
+	FCriticalSection DebugDrawLock;
+	TArray<FDebugBird> PendingDebugBirds;
+
+	/** Draws what the render pass queued. Game thread only. */
+	void DrainDebugDraw();
+#endif
 
 	TArray<FFlockSlot> Slots;
 

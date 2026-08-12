@@ -525,7 +525,7 @@ plus `TakeOff` and `Land` **triggers** per event, so cascades are audible as cas
 > [!TIP]
 > If caws still cut each other off, check **Sound Concurrency** on the asset. A group with Max Count 1 and Stop Oldest steals the voice however many pool slots are free.
 
-Nothing here is spawned from a processor. A Mass processor is not guaranteed to be on the game thread, and spawning an actor, touching a component or broadcasting a delegate from a worker crashes; so events go into a locked queue drained once per frame on the game thread.
+Nothing here is spawned from a processor. A Mass processor is not guaranteed to be on the game thread, and spawning an actor, touching a component or broadcasting a delegate from a worker crashes; so events go into a locked queue drained once per frame on the game thread. The per-bird debug draw takes the same route, since `DrawDebug*` is game thread only.
 
 ---
 
