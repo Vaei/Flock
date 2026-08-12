@@ -11,7 +11,9 @@ AFlockRenderActor::AFlockRenderActor()
 
 	// Birds are cosmetic and the subsystem drives them wholesale, so there is nothing for world
 	// partition or replication to do here.
+#if WITH_EDITORONLY_DATA
 	bIsSpatiallyLoaded = false;
+#endif
 	bReplicates = false;
 
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
