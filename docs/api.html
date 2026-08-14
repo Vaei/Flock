@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>In your own code &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>In your own code</h1>
+<p class="lede">Scaring them, reacting to a clip, spawning without a volume, driving playback yourself, and scripting the bake.</p>
+
+<h2>Scaring them</h2>
+
+<pre><code>#include "System/FlockStatics.h"
+
+UFlockStatics::ScareFlock(this, GetActorLocation(), /*Radius*/ 2000.f);
+UFlockStatics::ScareFlockAtActor(Actor, /*Radius*/ 2000.f);</code></pre>
+
+<p>Both <code>BlueprintCallable</code>. Nothing to register, nothing to clean up. Full parameters on <a href="perception.html#scaring">Being noticed</a>.</p>
+
+<p>Prefer the <b>Scare Flock</b> notify where the moment belongs to an animation.</p>
+
+<h2>Making something alarming</h2>
+
+<p>A <b>Flock Disturbance Component</b> covers most cases. For a type your own module owns, implement the interface instead:</p>
+
+<pre><code>class AMyBoulder : public AActor, public IFlockDisturbanceInterface
+{
+    virtual float GetFlockThreatWeight() const override { return 6.f; }
+    virtual float GetFlockThreatRadius() const override { return 2500.f; }
+    virtual bool  IsFlockThreatActive() const override { return bRolling; }
+};</code></pre>
+
+<p>Weight and radius are read once at registration. Only <code>IsFlockThreatActive</code> is polled, and only for actors that implement it, which is what makes <i>unnoticed while crouched</i> free.</p>
+
+<h2>Reacting to a clip</h2>
+
+<pre><code>UFlockSubsystem::Get(this)-&gt;OnClipStarted.AddDynamic(this, &amp;AMyActor::HandleFlockClip);</code></pre>
+
+<p><code>FlockIndex</code>, <code>Clip</code>, <code>Position</code>. <code>BlueprintAssignable</code>, fired on the game thread the moment the clip starts, for every rest break whether or not it has a sound attached.</p>
+
+<p>Unlike the audio it is <b>never delayed</b>: a clip starting is a clip starting, and <b>Sound Delay</b> does not apply to it. Takeoff and landing have their own audio slots on the species and do not come through here.</p>
+
+<h2>Spawning without a volume</h2>
+
+<pre><code>FFlockSpawnParams Params;
+Params.Species = MySpecies;
+Params.Count = 20;
+Params.Origin = GetActorLocation();
+Params.Extent = FVector(1500.f, 1500.f, 0.f);
+
+const int32 FlockIndex = UFlockSubsystem::Get(this)-&gt;CreateFlock(Params);
+...
+UFlockSubsystem::Get(this)-&gt;DestroyFlock(FlockIndex);</code></pre>
+
+<p>The same fields the volume exposes: <code>OrbitPreference</code>, <code>bSnapToGround</code>, <code>GroundTraceChannel</code>, <code>MinSpawnSpacing</code>, <code>GroundOffset</code>, <code>MinGroundNormalZ</code>, <code>HeadroomRadius</code>. A volume is a thin wrapper over this.</p>
+
+<p>On a volume, <code>SpawnFlock()</code> and <code>DespawnFlock()</code> are <code>BlueprintCallable</code>; turn off <b>Spawn On Begin Play</b> to drive it yourself.</p>
+
+<h2 id="playback">Driving playback yourself</h2>
+
+<p><code>NumCustomDataFloats = 3</code> on the ISM.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Float</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>[0]</code></td><td><code>Frame</code>. Fractional when interpolating, whole otherwise</td></tr>
+<tr><td><code>[1]</code></td><td><code>PrevFrame</code>, written the same as <code>[0]</code></td></tr>
+<tr><td><code>[2]</code></td><td><code>NextFrame</code>, the whole frame after. Only read when the material's <b>Interpolate</b> switch is on</td></tr>
+</tbody>
+</table></div>
+
+<pre><code>const FAnimToTextureAnimInfo&amp; Range = AnimData-&gt;Animations[ClipIndex];
+const float NumClipFrames = Range.EndFrame - Range.StartFrame + 1;
+const float Elapsed = (Now - ClipStartTime) * PlayRate * AnimData-&gt;SampleRate;
+const float Local = bLoop ? FMath::Fmod(Elapsed, NumClipFrames)
+                          : FMath::Min(Elapsed, NumClipFrames - 1.f);   // one-shots hold on the last frame
+const float Frame = Range.StartFrame + Local;</code></pre>
+
+<div class="caution">
+Do <b>not</b> offset <code>Frame</code> to account for the reference pose. <code>Fmod</code> already keeps <code>Local</code> inside <code>[0, NumClipFrames)</code>, so adding one makes the last step of every loop sample the <i>next</i> clip's first frame - one wrong frame per cycle, which reads as a flicker. Verify with <b>Hold Frame Is Absolute</b> on the preview actor: the last frame of a clip must still look like that clip.
+</div>
+
+<pre><code>Instances-&gt;SetCustomData(0, Count - 1, CustomData, /*bMarkRenderStateDirty*/ false);</code></pre>
+
+<div class="warn">
+Leave <code>bMarkRenderStateDirty</code> <b>false</b> when updating every frame. <code>SetCustomData</code> already calls <code>CustomDataChanged</code> per instance, which is the incremental GPU update; marking dirty on top destroys and recreates the scene proxy every frame - wasteful, and visible as flicker.
+</div>
+
+<p><code>Frame</code> is a float but the textures are <code>TF_Nearest</code>, so values snap unless the material interpolates. <code>AFlockVATPreview</code> (<code>Flock/Public/Debug/FlockVATPreview.h</code>) is the whole thing working in about sixty lines.</p>
+
+<h2>Scripting the bake</h2>
+
+<p>The window is a front end for these. For batching several birds, or baking in CI.</p>
+
+<pre><code>import unreal
+
+BIRD = "/Game/Path/To/YourBird"
+CLIPS = ["Idle", "TurnLeft", "TakeOff", "Fly", "Land"]
+
+unreal.FlockBakeLibrary.configure_flock_bake(
+    f"{BIRD}/SKM_YourBird.SKM_YourBird",   # source skeletal mesh
+    f"{BIRD}/VAT",                          # output path
+    "YourBird",                             # asset name
+    [f"{BIRD}/{c}.{c}" for c in CLIPS],     # clips, in index order
+    30.0)                                   # sample rate
+unreal.FlockBakeLibrary.set_flock_bake_material_instances(
+    [f"{BIRD}/VAT/MI_YourBird_VAT.MI_YourBird_VAT"])
+
+unreal.FlockBakeLibrary.prepare_flock_assets()
+unreal.FlockBakeLibrary.bake_flock_textures()</code></pre>
+
+<p>Both return a bool and log failures to <code>LogFlockEditor</code>.</p>
+
+<div class="caution">
+Headless runs need <code>-AllowCommandletRendering</code>, or the mesh conversion returns null and logs nothing.
+</div>
+
+<pre><code>UnrealEditor-Cmd.exe &lt;uproject&gt; -run=pythonscript -script="bake.py" ^
+    -unattended -nosplash -nosound -AllowCommandletRendering</code></pre>
+
+<h2>Instrumenting</h2>
+
+<p><code>FLOCK_SCOPE(Name)</code> from <code>FlockStats.h</code> emits both the <code>stat flock</code> cycle counter and the Insights scope, so the two cannot drift apart. The name matches the <code>STAT_Flock_&lt;Name&gt;</code> id.</p>
+
+<pre><code>void UFlockThreatProcessor::Execute(FMassEntityManager&amp; EntityManager, FMassExecutionContext&amp; Context)
+{
+    FLOCK_SCOPE(Threat);
+    ...
+}</code></pre>
+
+<div class="note">
+Nothing user-facing is spawned from a processor. A Mass processor is not guaranteed to be on the game thread, and spawning an actor, touching a component or broadcasting a delegate from a worker crashes; events go into a locked queue drained once per frame on the game thread instead.
+</div>
+
+<div class="warn">
+A <code>FMassRuntimePipeline</code> held without <code>UPROPERTY</code> crashes in <code>DebugSetProcessor</code> on tick. Its <code>Processors</code> array is reflected, but only if the struct instance is itself reachable.
+</div>
+
+<p><a class="cta" href="example.html">A worked example &rarr;</a></p>
+
+</main>
+</body>
+</html>

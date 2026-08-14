@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Perches and blockers &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Perches and blockers</h1>
+<p class="lede">Where birds land, and where they will not fly. Slots are resolved in the editor and cooked into the owning asset; nothing traces at runtime.</p>
+
+<h2>Perch components</h2>
+
+<p>Add a <b>Flock Perch Component</b> to any actor - a fence Blueprint, a rooftop, a tree - and birds will land on it.</p>
+
+<p>Where there is nothing to put one on, drag a <b>Perch</b> out of <b>Place Actors &rarr; Flock</b> or the <b>Flock</b> menu. It is the component on an actor of its own, and it re-bakes every time it is moved or scaled, so dropping it on a ledge is the whole setup.</p>
+
+<div data-shot="perches.sources"></div>
+
+<h3>Sources</h3>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Source</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Box</b></td><td>a grid over the box, optionally traced down onto whatever is under it. The default</td></tr>
+<tr><td><b>Sockets</b></td><td>every socket on the picked mesh whose name starts with <b>Socket Prefix</b> (<code>Perch</code>)</td></tr>
+<tr><td><b>Spline</b></td><td>sampled along the picked spline at <b>Spacing</b> (<code>60</code>), optionally facing along the tangent</td></tr>
+<tr><td><b>Explicit</b></td><td>typed in by hand</td></tr>
+</tbody>
+</table></div>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Box Extent</b></td><td><code>250, 250, 100</code></td><td>Box source</td></tr>
+<tr><td><b>Grid Spacing</b></td><td><code>120</code></td><td>Box source</td></tr>
+<tr><td><b>Trace Down</b></td><td>on</td><td>Box source. Drops each grid point onto whatever is beneath it. Editor only; the result is baked</td></tr>
+<tr><td><b>Align To Tangent</b></td><td>on</td><td>Spline source. Face along the spline rather than keeping the component's rotation</td></tr>
+<tr><td><b>Position Jitter</b></td><td><code>0.4</code></td><td>scatter within each grid cell, so a box does not read as a grid</td></tr>
+<tr><td><b>Is Ground</b></td><td>off</td><td>ground rather than perch. Only changes which birds consider the slot</td></tr>
+<tr><td><b>Baked Slots</b></td><td></td><td>the resolved slots, in component space. Rebuilt by the button or on edit</td></tr>
+<tr><td><b>Auto Register</b></td><td>on</td><td></td></tr>
+</tbody>
+</table></div>
+
+<h3>Rebuilding</h3>
+
+<p><b>Rebuild Slots</b> on the component, or <b>Flock &rarr; Bake All Perches in Level</b> for every placed one.</p>
+
+<div class="warn">
+A perch inside a Blueprint is <b>not</b> written back to the asset that way. <b>Bake All Perches in Level</b> only rebuilds placed instances; rebuild a Blueprint's perch inside the Blueprint.
+</div>
+
+<h3>Seeing them</h3>
+
+<p>Select the actor and the slots draw: a disc where the bird stands, an arrow for the way it will face, green for a perch and tan for ground, with the slot index beside it. A Box source also draws the box the grid comes from, so a component with no slots yet still shows where they would land. Nothing baked draws <i>No slots - press Rebuild Slots</i> rather than nothing at all.</p>
+
+<div data-shots="perches.draw, perches.slots"></div>
+
+<pre><code>flock.Debug.Slots 1    green free, yellow reserved, red occupied
+flock.Debug.Slots 2    also which bird holds each one</code></pre>
+
+<h3>Reservation</h3>
+
+<p>Slots go <b>Free &rarr; Reserved &rarr; Occupied</b>, resolved in a single game-thread pass so two birds cannot claim one. A slot whose reserving bird no longer exists is freed in the same pass. A bird that finds nothing for <b>Max Orbit Time</b> (<code>20</code>s) lands on open ground instead.</p>
+
+<div class="tip">
+Author more slots than you have birds - half again is a good ratio. With exactly as many slots as birds, every one is taken and a bird on the ground has nowhere to move to, so voluntary moves stop happening and the flock reads as static.
+</div>
+
+<h2 id="blockers">Blocking volumes</h2>
+
+<div class="important">
+<b>Birds have no collision of any kind.</b> No traces, no queries, nothing touching physics, which is a good part of why a flock costs what it does. So a bird cannot discover the inside of a roof, and left alone a spooked flock will climb straight up through one.
+</div>
+
+<p><b>Flock Blocking Volume</b> is how it gets told. Place one where birds should not go, from <b>Flock &rarr; Blocking Box</b> or <b>Blocking Sphere</b>, then scale it over whatever they should stay out of. Nothing else needs setting.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Shape</b></td><td>Box</td><td>Box or Sphere. Between them they cover a room, a stairwell and a tree, and an exact shape would cost more than the problem is worth</td></tr>
+<tr><td><b>Box Extent</b></td><td><code>400, 400, 400</code></td><td>scaled by the actor, so it sizes in the viewport like anything else</td></tr>
+<tr><td><b>Sphere Radius</b></td><td><code>400</code></td><td>a non-uniform actor scale takes the largest axis rather than squashing it</td></tr>
+<tr><td><b>Avoid Margin</b></td><td><code>200</code></td><td>how far outside the surface birds start turning away</td></tr>
+<tr><td><b>Enabled</b></td><td>on</td><td>off leaves it in the level doing nothing</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="perches.margin"></div>
+
+<p><b>Avoid Margin</b> is the difference between a flock that curves around a building and one that pulls up short against the wall of it. Nothing gets through either way.</p>
+
+<h3>How it works</h3>
+
+<p>Avoidance is two halves. <b>Steering away</b> is what makes a flock look like it knows the building is there; <b>a hard placement outside the surface</b> is what makes <i>never inside</i> true rather than merely likely.</p>
+
+<p><b>Blocker Avoid Strength</b> (<code>2</code>) on the species scales the steering half, capped at one bird's worth of speed so avoiding something can deflect a bird but never cancel what it was doing. The placement half is not optional: at <code>0</code> birds are still stopped, they just get no warning.</p>
+
+<p>Takeoff, cruise and descent all respect them.</p>
+
+<div class="note">
+<b>A descent is only ever placed, never steered.</b> It is aimed at an authored spot, so turning a bird away from that spot is a bird that hovers beside a volume instead of arriving. The placement stops too once the bird is within <b>Land Arrive Distance</b>, so a volume clipping the spot cannot eject it every frame forever.
+</div>
+
+<h3>Cost</h3>
+
+<p><b>Six</b> shapes per flock, chosen nearest-first by the broadphase from however many are in the level, so per-bird cost is flat in how many volumes exist. <code>flock.Debug.Perception 3</code> draws the ones a flock currently holds, with their margins.</p>
+
+<div class="warn">
+A building further from the flock centre than six other blockers is not blocked. If birds fly through one thing in a level full of them, that is why. <code>flock.Debug.Perception 3</code> shows which six won.
+</div>
+
+<div class="note">
+Blockers keep birds <i>out of</i> a volume; they do not stop one being <i>sent</i> into one. A perch slot or a flock volume placed inside a blocker still gets used, and the bird will sit on the surface trying to reach it. Blockers are for the space birds fly through, not for fixing where they were told to go.
+</div>
+
+<h3>When birds never finish landing</h3>
+
+<p>A blocking volume's <b>Avoid Margin</b> reaching over the approach. The margin extends past every face, so a volume that visibly clears the perch can still cover the path down to it. Shrink the margin, or move the volume.</p>
+
+<p><a class="cta" href="blending.html">Why clip changes snap &rarr;</a></p>
+
+</main>
+</body>
+</html>

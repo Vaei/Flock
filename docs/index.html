@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Flock</h1>
+<p class="lede">Bird flocks that idle, notice you, and scatter. Mass simulation, one instanced mesh draw, animation baked into textures. No actor per bird, no skeletal meshes, no anim blueprints, no runtime traces.</p>
+
+<div data-shots="index.hero, index.tour"></div>
+
+<pre><code>cd YourProject/Plugins
+git clone git@github.com:Vaei/Flock.git</code></pre>
+
+<p><a class="cta" href="install.html">Install it &rarr;</a></p>
+
+<div class="caution">
+Not officially released. Expect bugs and updates without versioning. Documentation is still filling in.
+</div>
+
+<h2>Why</h2>
+
+<p>Birds are the cheapest thing in a level to want and the most expensive to build. A dozen actors, each with a skeletal mesh, an anim blueprint and a behaviour tree, is a real budget spent on set dressing nobody will walk up to.</p>
+
+<p>Flock spends none of it. A bird is a handful of floats in a Mass chunk; a whole flock is one instanced mesh component and two calls a frame; the animation is a texture the vertex shader reads. Nothing traces, nothing collides, nothing replicates, and none of it exists on a dedicated server.</p>
+
+<div data-shot="index.stat"></div>
+
+<h2>What you get</h2>
+
+<div class="tw"><table>
+<tr><td><b>They notice you</b></td><td>Anything can alarm them, scored on how near it is, how fast it is closing and how much it counts for. Perk up, turn to track, then go. Per-bird thresholds, so no two leave at once.</td></tr>
+<tr><td><b>Alarm is contagious</b></td><td>One bird leaving alarms the rest, so a flock cascades instead of switching.</td></tr>
+<tr><td><b>A scatter splits</b></td><td>Some relocate far from what frightened them, some wheel overhead and come back once it is calm. The ratio is authored per flock.</td></tr>
+<tr><td><b>A settled flock is never still</b></td><td>Rest breaks, a few dawdled steps, glances, and moves between perches with nothing wrong.</td></tr>
+<tr><td><b>Reserved perch slots</b></td><td>No two birds ever claim one branch. Slots from mesh sockets, a spline, a grid or placed by hand, on any actor, landing on the authored rotation.</td></tr>
+<tr><td><b>Clip changes that do not snap</b></td><td>The bake works out which frame of each clip best continues the one being left, so a bird entering a glide has its wings already up.</td></tr>
+<tr><td><b>Per-flock audio and VFX</b></td><td>One MetaSound bed fed live distance, count, alert and airborne ratio, with triggers for cascades, plus a pool of spatialised one-shots.</td></tr>
+<tr><td><b>Four LOD tiers</b></td><td>Structural, not branched: the tier is a tag, so a distant flock's chunks are never visited at all.</td></tr>
+</table></div>
+
+<h2>Twenty minutes to a flock</h2>
+
+<ol>
+<li><a href="install.html">Clone, build, enable</a>.</li>
+<li><a href="bake.html">Bake your bird</a>: three material settings, an empty species asset, one window.</li>
+<li>Map the clips. <b>Idle</b> is the only one required.</li>
+<li>Drag a <b>Flock Volume</b> out of the <b>Flock</b> menu. Set <b>Species</b> and <b>Spawn Count</b>.</li>
+<li>Play, and walk at them.</li>
+</ol>
+
+<h2>Light reading</h2>
+
+<div class="tw"><table class="free">
+<tr><td><a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-of-mass-entity-in-unreal-engine">Mass Entity overview</a></td><td>the ECS this is built on: entities, fragments, chunks, processors</td></tr>
+<tr><td><a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/animation-to-texture-tool-in-unreal-engine">Anim to Texture</a></td><td>the bake underneath: what a bone texture is and what it discards</td></tr>
+<tr><td><a href="https://dev.epicgames.com/documentation/en-us/unreal-engine/instanced-static-mesh-component-in-unreal-engine">Instanced static meshes</a></td><td>per-instance custom data, which is how a bird tells the shader its frame</td></tr>
+</table></div>
+
+<div class="note">
+Birds are cosmetic. They do not collide, they are not replicated, two clients will not see the same bird in the same place, and nothing about them runs on a dedicated server. If gameplay has to agree about a bird, this is the wrong tool.
+</div>
+
+<h2>Where to go</h2>
+
+<div class="doors">
+<a class="door" href="install.html"><b>Set it up</b><span>Clone, build, and get birds on the ground in one sitting.</span></a>
+<a class="door" href="bake.html"><b>Bake a bird</b><span>Skeletal mesh and clips in, static mesh and animation textures out.</span></a>
+<a class="door" href="placing.html"><b>Build a flock</b><span>Where a volume goes, what to tune, and the ambient and reactive forks.</span></a>
+<a class="door" href="species.html"><b>Look things up</b><span>Every parameter, what it costs, and what a symptom means.</span></a>
+</div>
+
+</main>
+</body>
+</html>

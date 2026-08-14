@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Install</h1>
+<p class="lede">UE5.8+. A C++ project, because the plugin has source. Twenty minutes to birds on the ground.</p>
+
+<h2>Get it</h2>
+
+<pre><code>cd YourProject/Plugins
+git clone git@github.com:Vaei/Flock.git</code></pre>
+
+<p>As a submodule, if your project is a git repo:</p>
+
+<pre><code>git submodule add git@github.com:Vaei/Flock.git Plugins/Flock
+git submodule update --init --recursive</code></pre>
+
+<p>Or download the ZIP from <a href="https://github.com/Vaei/Flock">the repo</a> and unpack it into <code>Plugins/</code>. Then regenerate project files, build, and enable <b>Flock</b> in the plugin browser.</p>
+
+<div class="note">
+It pulls in <b>Anim to Texture</b> and <b>Niagara</b>, both engine plugins, and enables them for you. Nothing else is required.
+</div>
+
+<h2>Check it worked</h2>
+
+<p>A <b>Flock</b> dropdown appears in the level editor toolbar, and a <b>Flock</b> category appears in <b>Place Actors</b>. If neither is there, the module did not load - check the log for <code>LogFlock</code>.</p>
+
+<div data-shot="install.menu"></div>
+
+<h2>The menu</h2>
+
+<p>Everything is in that one dropdown.</p>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Section</th><th>Entry</th><th></th></tr></thead>
+<tbody>
+<tr><td rowspan="3"><b>Vertex Animation</b></td><td>Bake Animation Textures...</td><td>the bake window. See <a href="bake.html">Bake a bird</a></td></tr>
+<tr><td>Build Pose Match Table</td><td>rebuilds it on the window's species, without touching a texture</td></tr>
+<tr><td>Spawn Preview in Current Level</td><td>a grid you can scrub in the viewport, no PIE</td></tr>
+<tr><td><b>This Level</b></td><td>Bake All Perches in Level</td><td>rebuilds every placed perch component's slots</td></tr>
+<tr><td rowspan="4"><b>Place</b></td><td>Flock Volume</td><td>drag it out, or click to drop one in front of the camera</td></tr>
+<tr><td>Perch</td><td>a perch component on an actor of its own</td></tr>
+<tr><td>Blocking Box</td><td>somewhere birds will not fly</td></tr>
+<tr><td>Blocking Sphere</td><td>the same, round</td></tr>
+<tr><td rowspan="2"><b>Settings</b></td><td>Editor Preferences</td><td>per-developer, not checked in</td></tr>
+<tr><td>Hide This Menu</td><td>hides the dropdown for you alone. Undo it in Editor Preferences</td></tr>
+</tbody>
+</table></div>
+
+<p>The four <b>Place</b> entries are draggable as well as clickable, and the same four are in <b>Place Actors &rarr; Flock</b>.</p>
+
+<h2>Project settings</h2>
+
+<p><b>Project Settings &rarr; Game &rarr; Flock</b>. Defaults are fine to start; these are the ones worth knowing exist.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Enable Flock</b></td><td>on</td><td>off prices the whole system out without touching a level</td></tr>
+<tr><td><b>Default Species</b></td><td>none</td><td>used by any volume that names none, so a dropped volume works immediately</td></tr>
+<tr><td><b>Max Birds Total</b></td><td><code>2000</code></td><td>hard ceiling across every flock. Spawns past it are refused and logged</td></tr>
+<tr><td><b>Max Instances Per Component</b></td><td><code>256</code></td><td>instances before splitting into another component</td></tr>
+<tr><td><b>Auto Register Disturbance Classes</b></td><td><code>Pawn</code></td><td>every pawn alarms birds with no per-character setup. See <a href="perception.html">Being noticed</a></td></tr>
+<tr><td><b>Near / Mid / Far Distance</b></td><td><code>2000 / 5000 / 12000</code></td><td>the LOD tiers. See <a href="performance.html">Cost</a></td></tr>
+<tr><td><b>One Shot Pool Size</b></td><td><code>8</code></td><td>overlapping spatialised one-shots. Surplus is dropped, not queued</td></tr>
+</tbody>
+</table></div>
+
+<h2>Your first flock</h2>
+
+<p>You need a baked bird before a volume does anything, so <a href="bake.html">bake one</a> first. Then:</p>
+
+<ol>
+<li>Drag a <b>Flock Volume</b> out of the <b>Place</b> section, or click the entry to drop one in front of the camera.</li>
+<li>Scale the box over the ground the birds should own.</li>
+<li>Set <b>Species</b>, and <b>Spawn Count</b> to something small - <code>8</code> is plenty to judge by.</li>
+<li>Press Play. Walk at them.</li>
+</ol>
+
+<div data-shots="install.volume, install.first"></div>
+
+<div class="tip">
+Nothing else is needed for a working flock. Perches, blocking volumes and audio are all optional and all additive - a volume on its own gives you birds that stand about, dawdle, glance, take off when you approach and come back down.
+</div>
+
+<h2>Debug draws</h2>
+
+<p>All non-shipping, all <code>ECVF_Cheat</code>.</p>
+
+<pre><code>flock.Debug.Perception 1    bird state, alert level, and the clip and frame it is playing
+flock.Debug.Perception 2    also threat sources
+flock.Debug.Perception 3    also flock bounds, the attractor and any blocking volumes in use
+flock.Debug.Slots 1         perch slots: green free, yellow reserved, red occupied
+flock.Debug.Slots 2         also which bird holds each one</code></pre>
+
+<p><code>Perception 1</code> is the one to reach for first: it names the clip on each bird, so a wrong animation index shows up without opening a data asset.</p>
+
+<p><a class="cta" href="bake.html">Bake a bird &rarr;</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Placing a flock &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Placing a flock</h1>
+<p class="lede">The order that avoids doing it twice. Volume, ground, circuit, perches, blockers, count - in that order, because each one constrains the next.</p>
+
+<h2>The ten steps</h2>
+
+<ol>
+<li><b>Put the volume where the birds live</b>, not where you want to see them. The box is where they stand.</li>
+<li><b>Sit it on the ground</b> and leave <b>Snap To Ground</b> on. Off puts every bird on the plane through the box <i>centre</i>.</li>
+<li><b>Select it and look at the circuit.</b> That is where airborne birds go, and it is invisible any other time.</li>
+<li><b>Fix the circuit before anything else</b>: <b>Cruise Radius</b> and <b>Cruise Ceiling</b> on the species, then a <a href="perches.html#blockers">blocking volume</a> for whatever it reaches through.</li>
+<li><b>Add perches</b> to the things birds should land on. A flock with none is a flock that never gets off the floor for long.</li>
+<li><b>Set the count last.</b> Everything above is easier to judge at eight birds than at sixty.</li>
+<li><b>Walk at them in PIE</b> with <code>flock.Debug.Perception 1</code> on.</li>
+<li><b>Tune where they break</b>, which is <b>Proximity Exponent</b>, not a radius. See <a href="behaviour.html#where-they-break">Tuning behaviour</a>.</li>
+<li><b>Give the flock its own species asset</b> once you have two flocks that want different tuning. Subclass the volume per species while you are at it.</li>
+<li><b>Then the count</b>, up until it stops reading better.</li>
+</ol>
+
+<h2>The volume</h2>
+
+<p>Its box is where birds are scattered, and the bounds the disturbance broadphase tests against. Everything else on it is about that scatter.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Species</b></td><td>none</td><td>falls back to <b>Default Species</b> in project settings</td></tr>
+<tr><td><b>Spawn Count</b></td><td><code>5</code></td><td></td></tr>
+<tr><td><b>Spawn On Begin Play</b></td><td>on</td><td>off leaves it to <code>SpawnFlock()</code></td></tr>
+<tr><td><b>Orbit Preference</b></td><td><code>-1</code></td><td>chance a spooked bird wheels overhead. Negative takes the species' value</td></tr>
+<tr><td><b>Snap To Ground</b></td><td>on</td><td>traces down through the box for each bird, once at spawn</td></tr>
+<tr><td><b>Ground Trace Channel</b></td><td>WorldStatic</td><td></td></tr>
+<tr><td><b>Ground Offset</b></td><td><code>0</code></td><td>held off the ground by this much, so feet are not buried in it</td></tr>
+<tr><td><b>Min Spawn Spacing</b></td><td><code>80</code></td><td>nearest another bird may spawn. Scattered randomly, never stacked</td></tr>
+<tr><td><b>Min Ground Normal Z</b></td><td><code>0.7</code></td><td>steepest surface a bird will accept. <code>1</code> is flat, <code>0</code> accepts a wall</td></tr>
+<tr><td><b>Headroom Radius</b></td><td><code>20</code></td><td>clear space needed above the feet, so none is placed inside geometry. Zero skips the check</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="placing.ground"></div>
+
+<div class="warn">
+Birds standing in mid-air means nothing under the box to trace against, or ground steeper than <b>Min Ground Normal Z</b>. <code>LogFlock</code> warns either way. Birds sunk into a slope means the same thing with the trace off.
+</div>
+
+<h2 id="circuit">The circuit is the surprise</h2>
+
+<p>Select the volume and it draws the ring airborne birds wheel around: <b>Cruise Radius</b> at <b>Cruise Ceiling</b>, taken from whichever species it will actually use, plus the plane birds fall back to.</p>
+
+<p>Look at it every time. The usual discovery is that it reaches through a roof, a cliff or an upper floor the volume itself sits well clear of - and birds have <b>no collision of any kind</b>, so nothing stops them.</p>
+
+<div data-shot="placing.circuit"></div>
+
+<p>Two ways to fix it, and you generally want both:</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Shrink the circuit</b></td><td><b>Cruise Radius</b> and <b>Cruise Ceiling</b> on the species. Cheapest, and the right answer when the flock simply wants to be smaller</td></tr>
+<tr><td><b>Block the geometry</b></td><td>a <a href="perches.html#blockers">Flock Blocking Volume</a> over the building. Right when the circuit is the size you want and something is in the way of part of it</td></tr>
+</table></div>
+
+<div data-shot="placing.blocker"></div>
+
+<h2>Perches</h2>
+
+<p>Add a <b>Flock Perch Component</b> to the things birds should land on - a fence blueprint, a rooftop, a tree. Where there is nothing to put one on, drag a <b>Perch</b> actor out of the Flock menu and drop it on the ledge; it re-bakes every time it is moved or scaled, so that is the whole setup.</p>
+
+<div data-shot="placing.perches"></div>
+
+<p>Slots are reserved, so two birds never claim one branch, and a bird that finds nothing free for <b>Max Orbit Time</b> lands on open ground instead. Full detail on <a href="perches.html">Perches and blockers</a>.</p>
+
+<div class="tip">
+Author more slots than you have birds. With exactly as many slots as birds, every one is taken and a bird on the ground has nowhere to move to, so voluntary moves stop happening and the flock reads as static. Half again is a good starting ratio.
+</div>
+
+<h2>Where a flock starts</h2>
+
+<p>Left alone every bird would spawn standing on the ground, and the level's first seconds would be one burst of activity as they sorted themselves out. Instead the flock is fast-forwarded on its first tick.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Initial Perched Fraction</b></td><td><code>0.4</code></td><td>teleported straight onto free perches</td></tr>
+<tr><td><b>Initial Airborne Fraction</b></td><td><code>0.15</code></td><td>placed part way round a circuit, already flying</td></tr>
+<tr><td>the rest</td><td></td><td>stay on the ground</td></tr>
+</tbody>
+</table></div>
+
+<p>All with their timers scattered. A bird that finds no free perch stays put. This happens a tick after spawning rather than during it, because perch components register their slots from their own <code>BeginPlay</code> and nothing orders that against the volume's.</p>
+
+<h2>How many birds</h2>
+
+<p>Bird count barely moves the CPU. What it moves is triangles and overdraw, and how legible the flock is.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Count</th><th>Reads as</th></tr></thead>
+<tbody>
+<tr><td><code>3-6</code></td><td>individuals. Every bird is watchable, and a scatter is three separate decisions</td></tr>
+<tr><td><code>8-20</code></td><td>a flock. The cascade is visible as a cascade. This is the useful range for almost everything</td></tr>
+<tr><td><code>40+</code></td><td>a mass. Individual behaviour stops reading; what you are buying is the shape of the whole thing leaving</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="placing.density"></div>
+
+<p>Raise the count on <i>one</i> volume rather than scaling everything, so the <code>stat flock</code> counters stay attributable.</p>
+
+<h2>Several flocks</h2>
+
+<p>A volume is one flock, and a flock is the unit of everything shared: one attractor, one contagion window, one audio bed, one instanced mesh component set, one set of four threat slots.</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Two volumes</b></td><td>when the birds should be able to be alarmed independently - a courtyard and the roof above it, a square and the alley off it</td></tr>
+<tr><td><b>One larger volume</b></td><td>when they should erupt together. Contagion does not cross flocks</td></tr>
+</table></div>
+
+<p>Subclass the volume as a Blueprint per species once you are past one bird. Set <b>Default Species</b> in project settings and a dropped volume works with nothing assigned, which is what makes the first one instant.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>Volume sits on the ground, <b>Snap To Ground</b> on.</li>
+<li>Circuit selected and looked at. Nothing solid inside it, or a blocker over what is.</li>
+<li>More perch slots than birds.</li>
+<li>Walked at, in PIE, with <code>flock.Debug.Perception 1</code>.</li>
+<li>Count raised last, on one volume at a time.</li>
+</ul>
+
+<p><a class="cta" href="behaviour.html">Now tune it &rarr;</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ambient &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Ambient flocks</h1>
+<p class="lede">Birds as atmosphere. Nobody will walk up to them and nobody will think about them, and the job is to never be noticed as a system.</p>
+
+<div data-shot="ambient.scene"></div>
+
+<h2>Five moves</h2>
+
+<ol>
+<li><b>Put them out of reach.</b> A roofline, a spire, a wire across the street. Distance hides everything the simulation cannot do.</li>
+<li><b>Keep something in the air.</b> <b>Ambient Airborne Fraction</b> <code>0.2</code>. A settled flock that is entirely settled reads as a decal.</li>
+<li><b>Make them hard to spook.</b> <b>Proximity Exponent</b> <code>4-5</code>, <b>Max Notice Radius</b> down. An ambient flock that scatters every time you cross the square stops being ambience.</li>
+<li><b>Slow everything down.</b> Long intervals, low <b>Attractor Sweep Degrees</b>, low <b>Cruise Speed</b>.</li>
+<li><b>Spend nothing.</b> <b>Separation</b> off, <b>Interpolate Frames</b> off, small counts, and let the LOD tiers do their job.</li>
+</ol>
+
+<h2>Numbers to start from</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Ambient</th><th>Default</th></tr></thead>
+<tbody>
+<tr><td><b>Spawn Count</b></td><td><code>6-12</code></td><td><code>5</code></td></tr>
+<tr><td><b>Max Notice Radius</b></td><td><code>700</code></td><td><code>1200</code></td></tr>
+<tr><td><b>Proximity Exponent</b></td><td><code>4.5</code></td><td><code>3</code></td></tr>
+<tr><td><b>Flee Threshold</b></td><td><code>0.9</code></td><td><code>0.75</code></td></tr>
+<tr><td><b>Threshold Jitter</b></td><td><code>0.35</code></td><td><code>0.25</code></td></tr>
+<tr><td><b>Orbit Preference</b></td><td><code>0.8</code></td><td><code>0.5</code></td></tr>
+<tr><td><b>Ambient Airborne Fraction</b></td><td><code>0.2</code></td><td><code>0.15</code></td></tr>
+<tr><td><b>Restless Interval Min / Max</b></td><td><code>25-80</code>s</td><td><code>35-110</code>s</td></tr>
+<tr><td><b>Attractor Sweep Degrees</b></td><td><code>35</code>/s</td><td><code>70</code>/s</td></tr>
+<tr><td><b>Cruise Speed</b></td><td><code>320</code></td><td><code>500</code></td></tr>
+<tr><td><b>Enable Separation</b></td><td>off</td><td>on</td></tr>
+<tr><td><b>Interpolate Frames</b></td><td>off</td><td>off</td></tr>
+</tbody>
+</table></div>
+
+<p><b>Orbit Preference</b> high is the important one: an ambient flock that is startled should come back. A flock that relocates permanently leaves a hole in the scene where the birds used to be, and nobody puts them back.</p>
+
+<h2>Perches carry the whole look</h2>
+
+<p>An ambient flock spends almost all of its life sitting down, so what it looks like is what the perch slots look like.</p>
+
+<div data-shot="ambient.roofline"></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Source</th><th>For</th></tr></thead>
+<tbody>
+<tr><td><b>Spline</b></td><td>a wire, a rail, a ridge line. Set <b>Spacing</b> to something irregular against the architecture - <code>85</code> rather than <code>100</code> - or the birds sit on a grid</td></tr>
+<tr><td><b>Sockets</b></td><td>a tree or a statue where an artist has already chosen the spots</td></tr>
+<tr><td><b>Box</b></td><td>a flat roof or a ledge. <b>Position Jitter</b> <code>0.5</code>+, or it reads as a grid</td></tr>
+</tbody>
+</table></div>
+
+<p>Vary the authored rotation. Slots that all face the same way turn a roofline into a chorus line; birds sitting on a wire face along it, roughly, but not identically.</p>
+
+<div class="tip">
+<b>Scale Min / Max</b> at <code>0.9</code>/<code>1.15</code> and <b>Play Rate Jitter</b> at <code>0.15</code> do more for a distant flock than any behaviour setting. At that range you are reading silhouette size and the timing of small movements, and nothing else.
+</div>
+
+<h2>Sound is most of it</h2>
+
+<p>An ambient flock is heard far more than it is watched. The bed is fed <code>Distance</code>, <code>BirdCount</code>, <code>Alert</code> and <code>AirborneRatio</code> every frame, so a MetaSound can own the whole curve.</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Bed</b></td><td>the settled murmur. Drive its level off <code>Alert</code> and <code>AirborneRatio</code> so it goes quiet when they leave, and thin off <code>BirdCount</code></td></tr>
+<tr><td><b>Rest break sounds</b></td><td>the caw, the call. This is where the character is. Set <b>Sound Delay</b> so it lands where the beak opens</td></tr>
+<tr><td><b>Take Off / Land one-shots</b></td><td>wingbeats. Cheap, spatialised, and what turns a distant scatter into an event you hear</td></tr>
+</table></div>
+
+<p>Raise the <b>Weight</b> on whichever break carries the sound. A caw at weight <code>3</code> among eight breaks is nearly silent; the crow ships at <code>25</code>. Full detail on <a href="audio.html">Sound and VFX</a>.</p>
+
+<h2>What it should cost</h2>
+
+<div class="tw"><table class="free">
+<tr><td><b>Separation off</b></td><td>the only thing here that is not flat in flock size. An ambient flock is never close enough for anyone to see two birds overlap</td></tr>
+<tr><td><b>Interpolate Frames off</b></td><td>it is a per-vertex cost paid in the base pass and every shadow pass, and it buys smoothness on a slow wingbeat seen up close - which is the one thing an ambient flock never is</td></tr>
+<tr><td><b>Near Distance in tight</b></td><td>drop it to <code>1200</code> if the flock is never approached. Mid runs at half rate, Far at a sixth</td></tr>
+<tr><td><b>Two bone influences</b></td><td><code>NumBoneInfluences</code> on the data asset. On a small skeleton it is very hard to tell apart and takes a real bite out of the vertex shader</td></tr>
+</table></div>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>Something is in the air at all times.</li>
+<li>Crossing the square does not scatter them.</li>
+<li>If it does scatter them, they come back.</li>
+<li>The slots are not a grid and do not all face one way.</li>
+<li>You can hear them before you can see them.</li>
+<li>Separation and interpolation both off.</li>
+</ul>
+
+<p><a class="cta" href="reactive.html">The other direction &rarr;</a></p>
+
+</main>
+</body>
+</html>

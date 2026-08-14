@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cost &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Cost</h1>
+<p class="lede">Bird count barely moves the CPU. Triangles and overdraw move the GPU, and the vertex shader is where the real money goes.</p>
+
+<h2>In order</h2>
+
+<ol>
+<li><b>Rendering.</b> One ISM primitive per flock, two calls per component per frame. Bird count barely moves the CPU; <b>triangles and overdraw</b> move the GPU. Keep the mesh lean and the material <b>Opaque</b>.</li>
+<li><b>The vertex shader.</b> Bone influences and <a href="blending.html#interpolation">frame interpolation</a>, paid per vertex in the base pass and again in every shadow depth pass. This does not fall off with distance.</li>
+<li><b>Separation.</b> O(n&sup2;) within a chunk, and the only thing here that is not flat in flock size. <b>Separation Max Tier</b> decides how far out it runs (default <b>Near</b>): the further out, the more it costs and the less anyone can see it.</li>
+<li><b>Everything else is flat or tag-gated.</b> Steering never queries neighbours. Threat cost is bounded at four sources per flock regardless of how many exist in the world, and a calm flock's chunks are skipped whole. Culled birds are not visited.</li>
+</ol>
+
+<h2>stat flock</h2>
+
+<p><code>stat flock</code> in the console, or the <b>Flock</b> group in Unreal Insights. Both come from one macro, so they cannot drift apart.</p>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Group</th><th>Counters</th></tr></thead>
+<tbody>
+<tr><td>Subsystem tick</td><td><code>Tick</code>, <code>RefreshSources</code>, <code>Broadphase</code>, <code>SlotRequests</code>, <code>DrainEvents</code>, <code>RenderFlush</code></td></tr>
+<tr><td>Processors</td><td><code>LOD</code>, <code>Threat</code>, <code>Decision</code>, <code>Idle</code>, <code>Takeoff</code>, <code>Flight</code>, <code>Landing</code>, <code>Anim</code>, <code>Render</code></td></tr>
+<tr><td>Preview harness</td><td><code>PreviewTick</code>, <code>PreviewRebuild</code>, kept separate so it is never mistaken for simulation cost</td></tr>
+<tr><td>Counts</td><td><code>Flocks</code>, <code>Birds</code>, <code>Sources</code>, <code>Instances Written</code>, and <code>Birds (Near/Mid/Far/Culled)</code></td></tr>
+</tbody>
+</table></div>
+
+<div data-shots="performance.stat, performance.insights"></div>
+
+<p>Read the counts alongside the cycles. A cycle figure means nothing without knowing how many birds produced it.</p>
+
+<div class="important">
+<b><code>Anim</code> and <code>Render</code> reading non-zero is the proof a flock is live.</b> Nothing in engine core ticks Mass: the only runtime class hosting a processing phase manager ships in the MassGameplay plugin, which this does not require, so Flock runs its own pipeline from the subsystem tick. Those two at zero while birds are placed means the processors are not executing - which looks identical to a query matching nothing.
+</div>
+
+<h2 id="lod">LOD</h2>
+
+<p>Tier comes from camera distance and an estimated screen size, re-evaluated at <b>LOD Rate Hz</b>. Promotion happens at the distance, demotion at <b>LOD Hysteresis</b> past it, with a minimum <b>LOD Dwell Time</b> in a tier, so nothing flickers across a boundary.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Tier</th><th>Distance</th><th>Runs</th></tr></thead>
+<tbody>
+<tr><td><b>Near</b></td><td><code>2000</code></td><td>everything, every frame</td></tr>
+<tr><td><b>Mid</b></td><td><code>5000</code></td><td>everything, one frame in <b>Mid Frame Divisor</b> (<code>2</code>)</td></tr>
+<tr><td><b>Far</b></td><td><code>12000</code></td><td>one frame in <b>Far Frame Divisor</b> (<code>6</code>)</td></tr>
+<tr><td><b>Culled</b></td><td>past that</td><td>LOD re-evaluation only. Render writes zero scale</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="performance.tiers"></div>
+
+<div class="tw"><table>
+<tr><td><b>LOD Hysteresis</b></td><td><code>1.15</code></td></tr>
+<tr><td><b>LOD Dwell Time</b></td><td><code>0.5</code>s</td></tr>
+<tr><td><b>LOD Rate Hz</b></td><td><code>4</code>. A tier change moves an archetype, so this is not per frame</td></tr>
+</table></div>
+
+<p>Skipped time is folded into a scaled delta, so a Far bird still moves at the right speed. The phase comes from each bird's seed, so work is <b>spread across frames</b> rather than every Far bird spiking on the same one. Tiers are <i>tags</i>, so a Culled bird's chunks are never visited at all rather than visited and skipped.</p>
+
+<p>Idle behaviours run at every tier except Culled, at that tier's stride. Far is included on purpose: a bird part way through a dawdle has to finish it wherever it is.</p>
+
+<h2>Measuring</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>To price</th><th>Do</th></tr></thead>
+<tbody>
+<tr><td>Separation</td><td><code>flock.Separation 0</code> forces it off, <code>1</code> on at every tier, <code>-1</code> back to the species. A cheat, compiled out of Shipping</td></tr>
+<tr><td>Frame interpolation</td><td><code>flock.Interpolate 0</code> / <code>1</code>. Note this changes what is <i>asked for</i>; the shader still has the switch compiled in</td></tr>
+<tr><td>The Near tier alone</td><td>push <b>Near Distance</b> past the whole level, then bring it back in to see the tiers pay off</td></tr>
+<tr><td>The LOD striding</td><td><b>Mid</b> and <b>Far Frame Divisor</b> to <code>1</code>, which removes it</td></tr>
+<tr><td>The whole system</td><td><b>Enable Flock</b> off, without touching a level</td></tr>
+<tr><td>Bird count</td><td>raise <b>Spawn Count</b> on <i>one</i> volume, so the counters stay attributable</td></tr>
+</tbody>
+</table></div>
+
+<p>Everything but the cvars is under <b>Project Settings &rarr; Game &rarr; Flock</b>. The caps live there too: <b>Max Birds Total</b> (<code>2000</code>) and <b>Max Instances Per Component</b> (<code>256</code>).</p>
+
+<p>Bakes are traced (<code>FFlockBake::PrepareAssets</code>, <code>::Bake</code>, <code>::AnimationToTexture</code>), useful when a dense mesh takes a while and you want to know which step.</p>
+
+<h2>Where the savings are</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Saving</th><th>Costs you</th></tr></thead>
+<tbody>
+<tr><td><code>NumBoneInfluences</code> to <code>2</code></td><td>very little on a small skeleton. Most vertices only meaningfully belong to one bone. This is the largest single win available</td></tr>
+<tr><td><b>Interpolate Frames</b> off</td><td>smoothness on a slow wingbeat seen up close, and nothing else</td></tr>
+<tr><td><b>Separation</b> off</td><td>birds passing through each other during a scatter, at Near range</td></tr>
+<tr><td><b>Near Distance</b> in</td><td>full-rate simulation closer to the camera. Mid is half rate and hard to catch</td></tr>
+<tr><td>A leaner mesh</td><td>silhouette. This is the GPU cost, and it multiplies by every bird and every shadow pass</td></tr>
+<tr><td>Fewer birds</td><td>the least, per unit of look. Try everything above first</td></tr>
+</tbody>
+</table></div>
+
+<h2 id="networking">Networking</h2>
+
+<p><b>Nothing runs on a dedicated server.</b> Birds are cosmetic and simulate independently on each client; nothing is replicated, and two clients will not see the same bird in the same place.</p>
+
+<p>Three separate gates, so no single mistake can put them on a server:</p>
+
+<ul>
+<li>Every processor declares <code>Standalone | Client</code>, and Mass reports <code>Server</code> for a dedicated server, so the pipeline is built with <b>zero</b> processors and the subsystem's tick returns immediately.</li>
+<li><code>UFlockSubsystem</code> is not created there at all, so there is no audio pool, no actor-spawned handler and no event queue to fill. <code>ScareFlock</code> and the notify find no subsystem and do nothing.</li>
+<li><code>AFlockVolume</code> spawns nothing: no entities, no render actor, no instanced meshes.</li>
+</ul>
+
+<p>A <b>listen server</b> is a client too, so it gets birds like any other.</p>
+
+<p><a class="cta" href="api.html">Reaching it from code &rarr;</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Species &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Species</h1>
+<p class="lede">One kind of bird: its baked mesh, its clips, its breaks and its tuning. Everything except the per-flock mix, which is on the volume.</p>
+
+<div data-shot="species.asset"></div>
+
+<h2>The asset</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Mesh</b></td><td></td><td>the baked VAT static mesh, <b>not</b> the source skeletal mesh</td></tr>
+<tr><td><b>Anim Data</b></td><td></td><td>the Anim to Texture data asset. Supplies the per-clip frame ranges and the sample rate</td></tr>
+<tr><td><b>Clips</b></td><td></td><td>which baked animation each behaviour uses. <a href="#clips">Below</a></td></tr>
+<tr><td><b>Rest Breaks</b></td><td></td><td>the idle breaks this bird has. <a href="#breaks">Below</a></td></tr>
+<tr><td><b>Perception</b></td><td></td><td>what alarms it and how hard. <a href="perception.html">Being noticed</a></td></tr>
+<tr><td><b>Flight</b></td><td></td><td>takeoff, cruise, landing, restless moves. <a href="flight.html">Flying</a></td></tr>
+<tr><td><b>Idle</b></td><td></td><td>rest breaks, dawdling. <a href="idle.html">Idling</a></td></tr>
+<tr><td><b>Interpolate Frames</b></td><td>off</td><td>blend between the two frames either side. <a href="blending.html#interpolation">Blending</a></td></tr>
+<tr><td><b>Interpolate Max Tier</b></td><td>Mid</td><td>furthest tier that still asks for it</td></tr>
+<tr><td><b>Take Off VFX</b>, <b>Land VFX</b></td><td></td><td>any Niagara system. <a href="audio.html">Sound and VFX</a></td></tr>
+<tr><td><b>Flock Bed</b></td><td></td><td>one continuous sound for the whole flock</td></tr>
+<tr><td><b>Take Off / Land One Shots</b></td><td></td><td>spatialised to the individual bird</td></tr>
+<tr><td><b>Bake Recipe</b></td><td></td><td>editor only. How the baked assets were made. <a href="bake.html">Bake a bird</a></td></tr>
+</tbody>
+</table></div>
+
+<h2 id="clips">Clips</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Clip</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Idle</b></td><td>required. Everything falls back to it</td></tr>
+<tr><td><b>Turn Left</b>, <b>Turn Right</b></td><td>tracking a threat, and idle glances</td></tr>
+<tr><td><b>Take Off</b>, <b>Fly</b>, <b>Land</b></td><td>required for a bird to ever leave the ground. Without <b>Fly</b> the flock is permanently earthbound, which is a valid way to ship one</td></tr>
+<tr><td><b>Take Off Loop</b></td><td>optional. Held once <b>Take Off</b> has finished but the bird is still climbing. Unmapped, that gap is <b>Fly</b></td></tr>
+<tr><td><b>Land Loop</b></td><td>optional. The descent itself, from committing to coming down until the feet are on the ground. Unmapped, the descent is <b>Glide</b>, or <b>Fly</b> if there is no glide either</td></tr>
+<tr><td><b>Glide</b></td><td>optional. Replaces <b>Fly</b> while descending faster than <b>Glide Descent Rate</b>, and stands in for <b>Land Loop</b> when that is unmapped</td></tr>
+<tr><td><b>Bank Left</b>, <b>Bank Right</b></td><td>optional. Replace <b>Fly</b> while turning harder than <b>Bank Clip Yaw Rate</b></td></tr>
+<tr><td><b>Walk</b></td><td>a slow dawdle. Without it birds stand still between idles</td></tr>
+<tr><td>Rest breaks</td><td>authored separately, <a href="#breaks">below</a></td></tr>
+</tbody>
+</table></div>
+
+<div class="important">
+<b>Take Off Loop only ever plays if Takeoff Time outlasts the Take Off clip.</b> Below that the bird is already flying by the time the one-shot ends, so the bridge goes straight to <b>Fly</b> and the loop is dead data. The default <code>0.35</code>s launch is shorter than most takeoff animations. <b>Land Loop</b> has no such problem: a descent is always long.
+</div>
+
+<p>A landing runs <b>Land Loop &rarr; Land &rarr; Idle</b>. <b>Land Loop</b> covers the whole descent, however long it takes; <b>Land</b> starts the moment the feet are down and plays out on the ground, and only when it finishes does the bird go to idle. So author <b>Land</b> as the arrival itself - the flare, the fold, the settle - not as something that happens on the way down.</p>
+
+<h3>Each mapping</h3>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Animation Index</b></td><td><code>0</code></td><td>index into the data asset's <code>Animations</code> - the <i>enabled</i> clips, in bake order</td></tr>
+<tr><td><b>Loop</b></td><td>on</td><td>on for Idle, Walk, Fly and the turns; off for Take Off, Land and rest breaks</td></tr>
+<tr><td><b>Random Start Phase</b></td><td>off</td><td>on for <b>Idle</b> only, and only honoured where a flock wants scattering: the first idle after spawning, and the first after coming down. Re-entering idle from a rest break keeps continuity instead</td></tr>
+<tr><td><b>Must Complete</b></td><td>off</td><td>finish before another clip may replace this one. Wanted on the turns; leave off for Idle, which is long enough that waiting for it would delay every reaction</td></tr>
+<tr><td><b>Play Rate</b></td><td><code>1</code></td><td>multiplies the bird's own rate for this clip alone. Fixes one clip authored at the wrong speed, or slows a walk to match the ground speed it is driven at, without re-baking</td></tr>
+<tr><td><b>Sounds</b></td><td></td><td>played at the bird when the clip starts, one picked at random</td></tr>
+<tr><td><b>Audio Trigger</b></td><td>None</td><td>fired on the flock's bed when the clip starts</td></tr>
+<tr><td><b>Sound Delay</b></td><td><code>0</code></td><td>how far into the clip both land</td></tr>
+</tbody>
+</table></div>
+
+<div class="caution">
+Indices count the <b>enabled</b> sequences in data-asset order. A disabled clip is dropped and shifts every later index, and adding animations reorders the list (a multi-select drop sorts alphabetically). <b>Re-check every mapping after any re-bake.</b> The failure is silent: birds animate, with the wrong clips.
+</div>
+
+<div data-shot="species.mirror"></div>
+
+<h2 id="breaks">Rest breaks</h2>
+
+<p>A list, not clip slots, because a numbered slot cannot tell you which one is the caw. Each entry has a <b>Name</b>, which is what the list shows and which nothing reads.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Name</b></td><td></td><td>a label. Shown in the list</td></tr>
+<tr><td><b>Animation Index</b></td><td><code>0</code></td><td>the same as any other clip</td></tr>
+<tr><td><b>Weight</b></td><td><code>1</code></td><td>likelihood relative to the other breaks. Raise on a preen, drop on a full body shake, and one is common while the other stays a treat</td></tr>
+<tr><td><b>Play Rate</b></td><td><code>1</code></td><td></td></tr>
+<tr><td><b>Mirrored</b></td><td>off</td><td>for a break authored as two clips: a wing stretch left and right, a head cock either way</td></tr>
+<tr><td><b>Mirror Animation Index</b></td><td><code>0</code></td><td>the other side</td></tr>
+<tr><td><b>Mirror Chance</b></td><td><code>0.5</code></td><td>which side plays, once this break has won its pick</td></tr>
+<tr><td><b>Sounds</b>, <b>Audio Trigger</b>, <b>Sound Delay</b></td><td></td><td>as per clip. Both sides of a mirrored pair share them</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="species.breaks"></div>
+
+<p>A mirrored pair is <b>one entry</b>, so it spends one <b>Weight</b> across both sides. Two entries would make it twice as likely as a single-clip break, which is backwards: paired breaks tend to be the big conspicuous ones you wanted rare.</p>
+
+<div class="warn">
+There are <b>12</b> playback slots behind the list. Anything past that is dropped with a warning.
+</div>
+
+<div class="tip">
+Set <b>Sound Delay</b> on a caw. The sound belongs where the beak opens, not on frame 0.
+</div>
+
+<h2 id="per-bird">Per-bird variation</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Scale Min / Max</b></td><td><code>0.95</code> / <code>1.05</code></td><td>so a flock is not one bird repeated</td></tr>
+<tr><td><b>Play Rate Jitter</b></td><td><code>0.1</code></td><td>spread on playback speed</td></tr>
+<tr><td><b>Mesh Yaw Offset</b></td><td><code>0</code></td><td>correction, in degrees, for art that does not face +X. Applied everywhere facing comes from a direction, so a bird authored facing +Y flies forwards rather than sideways</td></tr>
+<tr><td><b>Bounds Radius</b></td><td><code>30</code></td><td>roughly the bird's radius in world units. Feeds the screen-size estimate that drives <a href="performance.html#lod">LOD</a></td></tr>
+</tbody>
+</table></div>
+
+<div class="tip">
+At any distance the scale and play-rate spread do more for a flock than any behaviour setting, because silhouette size and the timing of small movements are all that survives. <code>0.9</code>/<code>1.15</code> and <code>0.15</code> is a good pass for a distant flock.
+</div>
+
+<h2>Validation</h2>
+
+<p>Right-click the species and <b>Validate Data</b>. It reports a mesh that will not load, a missing <b>Idle</b> mapping, a stale <a href="blending.html">pose match table</a>, and a material instance whose frame count disagrees with the bake.</p>
+
+<p><a class="cta" href="perception.html">What alarms them &rarr;</a></p>
+
+</main>
+</body>
+</html>

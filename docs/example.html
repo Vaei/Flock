@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Crow &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>The Crow</h1>
+<p class="lede">The bird the plugin was built against, start to finish. <b>Its content is not included</b> - this is what a finished setup looks like, not something to open.</p>
+
+<h2>What it started as</h2>
+
+<div class="tw"><table>
+<tr><td><code>SKM_Crow</code></td><td>18 bones, 832 tris, 1 LOD, no morph targets</td></tr>
+<tr><td>21 sequences</td><td>all 30 fps, all on the one skeleton</td></tr>
+<tr><td><code>M_Flock</code></td><td>an existing base colour texture and roughness parameter</td></tr>
+</table></div>
+
+<p>Everything below was produced from those three.</p>
+
+<div data-shots="example.content, example.anims"></div>
+
+<h2>1. Material</h2>
+
+<p><code>M_Flock</code> got <b>Use Material Attributes</b>, <b>Num Customized UVs 1</b> and <b>Used with Instanced Static Meshes</b>. Its two nodes went into a <code>MakeMaterialAttributes</code>, and <code>MF_FlockBoneAnimation</code> went between that and the output. <code>MI_Crow_VAT</code> was made from it, with <b>Interpolate</b> ticked.</p>
+
+<div data-shot="example.material"></div>
+
+<h2>2. Bake</h2>
+
+<p><code>DA_Species_Crow</code> was created empty first, so the recipe had somewhere to live.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Bake window</th><th></th></tr></thead>
+<tbody>
+<tr><td>Species</td><td><code>DA_Species_Crow</code></td></tr>
+<tr><td>Source Skeletal Mesh</td><td><code>SKM_Crow</code></td></tr>
+<tr><td>Output Path</td><td><code>/Game/Characters/Creatures/Crow/Flock</code></td></tr>
+<tr><td>Asset Name</td><td><code>Crow</code></td></tr>
+<tr><td>Clips</td><td>all 21 sequences</td></tr>
+<tr><td>Sample Rate</td><td><code>30</code></td></tr>
+<tr><td>Bone Material Instances</td><td><code>MI_Crow_VAT</code></td></tr>
+</tbody>
+</table></div>
+
+<p><b>Prepare Asset Set</b>, then <code>MI_Crow_VAT</code> onto <code>SM_Crow_VAT</code>'s material slot, then <b>Bake</b>. It produced <code>SM_Crow_VAT</code>, <code>TX_Crow_BonePosition</code>, <code>TX_Crow_BoneRotation</code>, <code>TX_Crow_BoneWeight</code> and <code>DA_Crow_BoneAnimation</code>.</p>
+
+<div data-shots="example.window, example.folder, example.data"></div>
+
+<h2>3. Clips</h2>
+
+<p>What this bake's indices came out as. <b>They are per-bake</b>: the order is the data asset's enabled sequence list, not the order the clips were added.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Index</th><th>Source</th><th>Mapped to</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>0</code></td><td><code>CrowFly</code></td><td><b>Fly</b></td><td>loop</td></tr>
+<tr><td><code>1</code></td><td><code>CrowIdle</code></td><td><b>Idle</b></td><td>loop, <b>Random Start Phase</b></td></tr>
+<tr><td><code>2</code></td><td><code>CrowLand</code></td><td><b>Land</b></td><td>one-shot</td></tr>
+<tr><td><code>14</code></td><td><code>CrowTakeOff</code></td><td><b>Take Off</b></td><td>one-shot</td></tr>
+<tr><td><code>15</code></td><td><code>CrowTurn_L</code></td><td><b>Turn Left</b></td><td>loop</td></tr>
+<tr><td><code>16</code></td><td><code>CrowTurn_R</code></td><td><b>Turn Right</b></td><td>loop</td></tr>
+<tr><td><code>17</code></td><td><code>CrowWalk</code></td><td><b>Walk</b></td><td>loop</td></tr>
+<tr><td><code>18</code></td><td><code>CrowTakeOffLoop</code></td><td><b>Take Off Loop</b></td><td>loop</td></tr>
+<tr><td><code>19</code></td><td><code>CrowLandLoop</code></td><td><b>Land Loop</b></td><td>loop</td></tr>
+<tr><td><code>20</code></td><td><code>CrowGlide</code></td><td><b>Glide</b></td><td>loop</td></tr>
+</tbody>
+</table></div>
+
+<p>Indices 3-13 are the rest breaks, <code>CrowRB_</code> prefixed.</p>
+
+<p><b>Bank Left</b> and <b>Bank Right</b> are the only clips left unmapped. The bird leans through its transform instead, which is continuous rather than an on/off pose - see <a href="flight.html#banking">Banking</a>.</p>
+
+<div data-shot="example.clips"></div>
+
+<h2>4. Rest breaks</h2>
+
+<p>Eleven animations across eight entries, weighted so the small movements are common and the conspicuous ones are a treat.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Name</th><th>Index</th><th>Weight</th><th></th></tr></thead>
+<tbody>
+<tr><td>Caw</td><td><code>4</code></td><td><code>25.0</code></td><td><code>MS_Crow_Caw</code> in <b>Sounds</b></td></tr>
+<tr><td>Preen</td><td><code>9</code></td><td><code>3.0</code></td><td>mirrors <code>10</code></td></tr>
+<tr><td>Head Cock</td><td><code>6</code></td><td><code>3.0</code></td><td>mirrors <code>7</code></td></tr>
+<tr><td>Wing Shuffle</td><td><code>11</code></td><td><code>1.5</code></td><td></td></tr>
+<tr><td>Ground Peck</td><td><code>5</code></td><td><code>1.5</code></td><td></td></tr>
+<tr><td>Body Shake</td><td><code>3</code></td><td><code>1.0</code></td><td></td></tr>
+<tr><td>Hop</td><td><code>8</code></td><td><code>0.8</code></td><td></td></tr>
+<tr><td>Wing Stretch</td><td><code>12</code></td><td><code>0.4</code></td><td>mirrors <code>13</code></td></tr>
+</tbody>
+</table></div>
+
+<p>A mirrored pair is one entry, so a wing stretch left and right share that <code>0.4</code> between them rather than getting <code>0.4</code> each.</p>
+
+<div data-shots="example.breaks, example.caw"></div>
+
+<h2>5. Sound</h2>
+
+<p><code>MSS_FlockBed_Crow</code> in <b>Flock Bed</b>, taking <code>Distance</code>, <code>BirdCount</code>, <code>Alert</code> and <code>AirborneRatio</code> and deciding its own mix. The caw is a <b>Sound</b> on its rest break rather than a bed trigger, so it comes from the bird that opened its beak.</p>
+
+<div data-shot="example.bed"></div>
+
+<h2>6. Tuning moved off default</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><b>Takeoff Time</b></td><td><code>1.0</code></td><td><code>CrowTakeOff</code> runs 0.93s. Under that the bird is already flying when the clip ends and <b>Take Off Loop</b> never gets a turn</td></tr>
+<tr><td><b>Pose Matching</b></td><td>defaults</td><td>952 frames &times; 21 animations, so the table is 40 KB. Built by the bake</td></tr>
+<tr><td><b>Interpolate</b> (on <code>MI_Crow_VAT</code>)</td><td>on</td><td>30 fps playback on a slow wingbeat steps visibly up close. Takes the vertex shader from 956 instructions to 1440, all of it per vertex. Two bone influences instead of four would bring that to 992</td></tr>
+<tr><td><b>Interpolate Frames</b> (species)</td><td>on</td><td>the other half of it. Without this the material blends two identical frames and the 1440 buys nothing</td></tr>
+<tr><td>Caw <b>Weight</b></td><td><code>25</code></td><td>crows caw constantly; at the <code>2.0</code> it started on it was a rarity</td></tr>
+</tbody>
+</table></div>
+
+<h2>7. In the level</h2>
+
+<p>A <b>Flock Volume</b> sized to the area the birds should own, at ground height, with <b>Species</b> set and <b>Spawn Count</b> raised until it read right. Perches came from <b>Flock Perch Components</b> on the things birds should land on.</p>
+
+<div data-shots="example.volume, example.perch"></div>
+
+<h2>Result</h2>
+
+<div data-shot="example.result"></div>
+
+<p><a class="cta" href="troubleshooting.html">If yours is wrong &rarr;</a></p>
+
+</main>
+</body>
+</html>

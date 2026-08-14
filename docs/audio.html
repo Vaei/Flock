@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sound and VFX &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Sound and VFX</h1>
+<p class="lede">All optional. Leave a slot empty and nothing is created.</p>
+
+<h2>On the species</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Slot</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Take Off VFX</b>, <b>Land VFX</b></td><td>any Niagara system, spawned per event from Niagara's own component pool. Nothing special is asked of the asset, and it is one batched component per flock rather than one per bird</td></tr>
+<tr><td><b>Flock Bed</b></td><td>a continuous sound for the whole flock, one component whatever its size</td></tr>
+<tr><td><b>Take Off One Shots</b>, <b>Land One Shots</b></td><td>spatialised to the individual bird, one picked at random, from a small pool</td></tr>
+</tbody>
+</table></div>
+
+<h2>The bed</h2>
+
+<p>Fed these every frame, so a MetaSound can own its own mixing.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Parameter</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>Distance</code></td><td>listener to flock centre. The MetaSound owns the falloff curve - it is handed a distance, not a volume</td></tr>
+<tr><td><code>BirdCount</code></td><td>live birds in the flock</td></tr>
+<tr><td><code>Alert</code></td><td>mean alert, 0..1</td></tr>
+<tr><td><code>AirborneRatio</code></td><td>fraction currently flying, 0..1</td></tr>
+</tbody>
+</table></div>
+
+<p>Plus <code>TakeOff</code> and <code>Land</code> <b>triggers</b> per event, so cascades are audible as cascades.</p>
+
+<div data-shot="audio.bed"></div>
+
+<div class="tip">
+Drive the bed's level off <code>Alert</code> and <code>AirborneRatio</code> so it goes quiet when the flock leaves, and thin it off <code>BirdCount</code> so a flock losing birds thins rather than cutting out. Those two are what stop a bed sounding like a looping ambience laid over the scene.
+</div>
+
+<h2>Per-clip audio</h2>
+
+<p>Any clip mapping and any rest break carries <b>Sounds</b>, an <b>Audio Trigger</b> and a <b>Sound Delay</b>.</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Sounds</b></td><td>played at the bird when the clip starts, one picked at random, from the shared one-shot pool</td></tr>
+<tr><td><b>Audio Trigger</b></td><td>fired on the flock's bed, so a MetaSound decides what the moment sounds like</td></tr>
+<tr><td><b>Sound Delay</b></td><td>how far into the clip both land</td></tr>
+</table></div>
+
+<div data-shot="audio.break"></div>
+
+<p><b>Rest breaks carry their own audio</b>, set on the break rather than on the species, because which sound goes with a caw is a property of the caw. Both sides of a mirrored pair share the entry's list.</p>
+
+<div class="important">
+<b>Sounds is a list, picked at random per play.</b> One caw asset repeated across a flock is what gives an ambience away, and separate assets do not contend for one asset's concurrency budget the way repeats of a single one do.
+</div>
+
+<div class="tip">
+Set <b>Sound Delay</b> on a caw. The beak has to open first, and lining the two up by eye is the difference between a bird cawing and a bird miming.
+</div>
+
+<h2>The pool</h2>
+
+<p><b>One Shot Pool Size</b> (Project Settings &rarr; Game &rarr; Flock, default <code>8</code>) caps overlapping one-shots. A cascade past it <b>drops</b> the surplus rather than queueing it: a late caw is worse than a missing one.</p>
+
+<p><b>Enable One Shot Audio</b> turns them off entirely, leaving the bed and its triggers.</p>
+
+<div class="warn">
+If caws still cut each other off, check <b>Sound Concurrency</b> on the asset. A group with Max Count 1 and Stop Oldest steals the voice however many pool slots are free.
+</div>
+
+<h2>Mixing a flock</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>You want</th><th>Where it lives</th></tr></thead>
+<tbody>
+<tr><td>A murmur you hear before you see them</td><td>the bed, off <code>Distance</code> and <code>BirdCount</code></td></tr>
+<tr><td>Individual character - the caw, the call</td><td>a rest break's <b>Sounds</b>, with a <b>Weight</b> high enough to actually fire</td></tr>
+<tr><td>The scatter as an event</td><td>the <code>TakeOff</code> trigger on the bed, <i>and</i> <b>Take Off One Shots</b></td></tr>
+<tr><td>Wingbeats you can place in space</td><td><b>Take Off / Land One Shots</b>. The bed is one component and cannot</td></tr>
+<tr><td>The flock going quiet as it leaves</td><td><code>AirborneRatio</code> on the bed</td></tr>
+</tbody>
+</table></div>
+
+<div class="tip">
+Raise the <b>Weight</b> on whichever break carries the sound. A caw at weight <code>3</code> among eight breaks is nearly silent; the crow ships at <code>25</code>, because crows caw constantly.
+</div>
+
+<h2>Why none of it is spawned from a processor</h2>
+
+<div class="note">
+A Mass processor is not guaranteed to be on the game thread, and spawning an actor, touching a component or broadcasting a delegate from a worker crashes. So events go into a locked queue drained once per frame on the game thread. The per-bird debug draw takes the same route, since <code>DrawDebug*</code> is game thread only.
+</div>
+
+<p><a class="cta" href="performance.html">What it costs &rarr;</a></p>
+
+</main>
+</body>
+</html>

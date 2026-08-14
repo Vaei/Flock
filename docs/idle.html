@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idling &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Idling</h1>
+<p class="lede">Four things fill the time between takeoffs, on four independent per-bird intervals. All of them are deliberately long.</p>
+
+<h2>Rest breaks</h2>
+
+<p>Every <b>Rest Interval Min</b>/<b>Max</b> a settled bird plays one of its <a href="species.html#breaks">rest breaks</a> once and returns to idle, picked by <b>Weight</b>. The preen, the head cock, the caw.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Rest Interval Min / Max</b></td><td><code>6-18</code>s</td><td></td></tr>
+<tr><td><b>Allow Rest Breaks</b></td><td>on</td><td></td></tr>
+</tbody>
+</table></div>
+
+<p>Nothing happens if the species mapped none.</p>
+
+<div data-shot="idle.breaks"></div>
+
+<h2>Dawdling</h2>
+
+<p>Every <b>Walk Interval Min</b>/<b>Max</b> a bird on <b>open ground</b> wanders somewhere between <b>Walk Min Distance</b> and <b>Walk Radius</b> of the spot it spawned on, turning to face where it is going and slowing into the turn rather than crabbing sideways.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Walk Interval Min / Max</b></td><td><code>9-28</code>s</td><td></td></tr>
+<tr><td><b>Walk Speed</b></td><td><code>45</code></td><td></td></tr>
+<tr><td><b>Walk Radius</b></td><td><code>150</code></td><td>furthest a dawdle strays from the spawn spot</td></tr>
+<tr><td><b>Walk Min Distance</b></td><td><code>45</code></td><td>shortest a dawdle is worth making, so a bird never takes half a step</td></tr>
+<tr><td><b>Walk Arrive Distance</b></td><td><code>8</code></td><td></td></tr>
+<tr><td><b>Walk Turn Rate Degrees</b></td><td><code>220</code>/s</td><td>how fast it lines up before setting off</td></tr>
+<tr><td><b>Allow Walking</b></td><td>on</td><td></td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="idle.walk"></div>
+
+<p>Aiming from the <b>spawn spot</b> rather than from where it currently stands is what keeps a bird that dawdles all day from drifting out of its flock.</p>
+
+<div class="warn">
+Walking never traces. A bird holds the height it was placed at, so keep <b>Walk Radius</b> short on uneven ground or birds will walk into a slope.
+</div>
+
+<p>Needs a <b>Walk</b> clip. A bird holding a perch slot never walks: it would be stepping off a branch and leaving a reserved perch stood empty.</p>
+
+<h2>Glances</h2>
+
+<p>Every <b>Glance Interval Min</b>/<b>Max</b>, a turn of up to <b>Glance Yaw Degrees</b> using the turn clips it already has, so it needs no extra animation.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Glance Interval Min / Max</b></td><td><code>2.5-7</code>s</td><td>on the <b>Perception</b> block, because an alert bird turns the same way</td></tr>
+<tr><td><b>Glance Yaw Degrees</b></td><td><code>55</code></td><td>small: this is a look, not a manoeuvre</td></tr>
+<tr><td><b>Allow Glances</b></td><td>on</td><td></td></tr>
+</tbody>
+</table></div>
+
+<h2 id="restless">Moving unprompted</h2>
+
+<p>Birds also move with nothing disturbing them. On a per-bird interval a settled bird takes off and picks a perch or its original ground spot, weighted by <b>Perch Preference</b> - so it sometimes chooses the same kind of place twice rather than ping-ponging.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Restless Interval Min / Max</b></td><td><code>35-110</code>s</td><td></td></tr>
+<tr><td><b>Restless Orbit Chance</b></td><td><code>0.3</code></td><td>chance the move takes a lap overhead first rather than hopping straight across</td></tr>
+<tr><td><b>Perch Preference</b></td><td><code>0.5</code></td><td>chance it targets a perch rather than its ground spot. <code>0</code> keeps birds on the ground, <code>1</code> keeps them fighting over perches</td></tr>
+<tr><td><b>Ambient Airborne Fraction</b></td><td><code>0.15</code></td><td>standing target for how much of the flock is in the air with nothing wrong. Zero switches it off</td></tr>
+<tr><td><b>Ambient Airborne Urgency</b></td><td><code>8</code>&times;</td><td>how much faster the restless countdown runs while under that target</td></tr>
+<tr><td><b>Allow Restless Moves</b></td><td>on</td><td></td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="idle.restless"></div>
+
+<div class="tip">
+<b>Ambient Airborne Fraction</b> is the setting that matters most here and the easiest to miss. Left to the interval alone, a lap overhead is far too rare to catch: on ten birds it works out at one short orbit every twenty seconds or so. Below the target, restless countdowns run 8&times; faster and every move is an orbit; once met, everything drops back to the slow interval.
+</div>
+
+<p>A voluntary move carries <b>no contagion</b>, so one bird shuffling never panics the flock, and it ignores the threat-avoidance filter because it is not fleeing.</p>
+
+<h2>What can interrupt what</h2>
+
+<p>All four yield instantly to a real alert, and none can interrupt a clip mid-pose. Clips do not blend into each other, so one cut short is a visible snap - which is what <b>Must Complete</b> on a mapping is for.</p>
+
+<div class="warn">
+These intervals are deliberately long, and shortening them is the wrong instinct when a flock looks static. A bird playing a break every three seconds reads as agitated rather than busy. Reach for <b>Ambient Airborne Fraction</b> and more perch slots first.
+</div>
+
+<p>Idle behaviours run at every LOD tier except <b>Culled</b>, at that tier's stride. Far is included on purpose: a bird part way through a dawdle has to finish it wherever it is.</p>
+
+<p><a class="cta" href="perches.html">Where they land &rarr;</a></p>
+
+</main>
+</body>
+</html>

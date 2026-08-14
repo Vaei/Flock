@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bake a bird &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Bake a bird</h1>
+<p class="lede">A skeletal mesh and its clips in, a static mesh and three textures out. Five steps, one window.</p>
+
+<h2 id="material">1. The material</h2>
+
+<p>Assign your bird a material you are willing to modify, and set:</p>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><b>Use Material Attributes</b></td><td>on</td><td>mandatory. The bone animation function takes attributes in and returns World Position Offset and Normal on one wire; without this there is no pin to connect</td></tr>
+<tr><td><b>Num Customized UVs</b></td><td><code>1</code></td><td>the lookup UVs the bake writes</td></tr>
+<tr><td><b>Used with Instanced Static Meshes</b></td><td>on</td><td>required to render on an ISM</td></tr>
+<tr><td><b>Used with Skeletal Meshes</b></td><td>on</td><td>only if you also want the material on the source skeletal mesh</td></tr>
+<tr><td>Blend Mode</td><td>Opaque</td><td>Masked costs a great deal more with no depth prepass</td></tr>
+<tr><td>Tangent Space Normal</td><td>on (default)</td><td>the function's normal path assumes it</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="bake.matsettings"></div>
+
+<p>Then put <b><code>MF_FlockBoneAnimation</code></b> between <code>MakeMaterialAttributes</code> and the <code>MaterialAttributes</code> output.</p>
+
+<div data-shot="bake.graph"></div>
+
+<div class="note">
+<code>MF_FlockBoneAnimation</code> is a drop-in for the Anim to Texture plugin's <code>MF_BoneAnimation</code>. Same inputs, same parameters, one extra: an <b>Interpolate</b> static switch, off by default and free while it is off. See <a href="blending.html#interpolation">Frame interpolation</a>.
+</div>
+
+<p>Make a material instance from it. That instance is what goes on the baked static mesh, and what the bake pushes frame counts onto.</p>
+
+<h2>2. The species asset</h2>
+
+<p><b>Content Browser &rarr; Miscellaneous &rarr; Data Asset &rarr; Flock Species Data</b>, named <code>DA_Species_&lt;Name&gt;</code>.</p>
+
+<p>Leave it empty. The bake fills it in, and the bake recipe lives on it, so it needs to exist before the window has anywhere to write.</p>
+
+<h2>3. Bake</h2>
+
+<p><b>Flock &rarr; Bake Animation Textures...</b></p>
+
+<ol>
+<li>Set <b>Species</b> to the asset you just made.</li>
+<li>Set <b>Source Skeletal Mesh</b>, <b>Output Path</b>, <b>Asset Name</b>, your <b>Clips</b> and <b>Sample Rate</b>.</li>
+<li><b>Prepare Asset Set</b>, which creates the mesh, the textures and the data asset.</li>
+<li>Put your material instance in <b>Bone Material Instances</b>, and on the new static mesh's material slot.</li>
+<li>Leave <b>Build Pose Match Table</b> on.</li>
+<li><b>Bake</b>.</li>
+</ol>
+
+<div data-shot="bake.window"></div>
+
+<div class="warn">
+<b>Sample Rate must be your animations' actual frame rate.</b> It is a time step, not a frame count: get it wrong and the bake walks off the end of every clip.
+</div>
+
+<h3>What Prepare Asset Set makes</h3>
+
+<div class="tw"><table>
+<thead><tr><th>Asset</th><th>Name</th></tr></thead>
+<tbody>
+<tr><td>Static mesh</td><td><code>SM_&lt;Name&gt;_VAT</code></td></tr>
+<tr><td>Textures</td><td><code>TX_&lt;Name&gt;_BonePosition</code>, <code>_BoneRotation</code>, <code>_BoneWeight</code></td></tr>
+<tr><td>Data asset</td><td><code>DA_&lt;Name&gt;_BoneAnimation</code></td></tr>
+</tbody>
+</table></div>
+
+<p>It also sets <code>UVChannel = 1</code>, <code>NumDriverTriangles = 1</code>, moves the lightmap to UV2, and sets <code>bAutoPlay = false</code>. That lightmap move is the most common first-run failure fixed for you: a freshly converted mesh defaults to lightmap 1, and so does <code>UVChannel</code>.</p>
+
+<div data-shots="bake.assets, bake.data"></div>
+
+<h3>The recipe lives on the species</h3>
+
+<p>Not on the window. Assigning a <b>Species</b> loads its recipe; a successful Prepare or Bake writes it back and points the species at what was produced. Moving to another bird costs nothing.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Button</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Load</b></td><td>pull the species' recipe into the window, discarding what is there</td></tr>
+<tr><td><b>Save To Species</b></td><td>push the window's recipe onto the species without baking</td></tr>
+<tr><td><b>Prepare Asset Set</b></td><td>create the assets, then save the recipe</td></tr>
+<tr><td><b>Bake</b></td><td>bake, then save the recipe</td></tr>
+</tbody>
+</table></div>
+
+<p>Turn off <b>Write Back To Species</b> to use the window as a scratchpad. An empty recipe is never loaded over a populated window, so pointing at a fresh species starts from what you already have.</p>
+
+<h2 id="clips">4. Map the clips</h2>
+
+<p>On the species, set <b>Mesh</b> to <code>SM_&lt;Name&gt;_VAT</code> and <b>Anim Data</b> to <code>DA_&lt;Name&gt;_BoneAnimation</code>, then fill <b>Clips</b>. <b>Idle</b> is the only one required. Turn <b>Random Start Phase</b> on for it.</p>
+
+<p>Read the indices off <code>Animations</code> on the data asset, never off the order you typed the clips in.</p>
+
+<div class="caution">
+Indices follow the <b>enabled</b> sequences in data-asset order, and adding animations reorders that list (a multi-select drop sorts alphabetically). <b>Re-check every mapping after any re-bake.</b> The failure is silent: birds animate, with the wrong clips. <code>flock.Debug.Perception 1</code> names the clip on each bird, which is how you catch it without opening the asset.
+</div>
+
+<div data-shot="bake.clips"></div>
+
+<p>The full clip list, what each is for and which are optional, is on <a href="species.html#clips">Species</a>.</p>
+
+<h2 id="rebake">Re-baking</h2>
+
+<div class="caution">
+<b>Every re-bake needs the material instance in Bone Material Instances</b>, not just the first one. The instance carries its own copy of <code>NumFrames</code>, and a bake that does not update it leaves the material addressing the old texture: everything past the old frame count clamps to the last row and freezes. Since new clips are appended at the end, this hits exactly the clips you just added and nothing else.
+</div>
+
+<p><b>The recipe owns the sequence list.</b> Prepare replaces the data asset's <code>AnimSequences</code> with the recipe's, so a sequence added to the data asset directly survives only until the next Prepare. It refuses rather than dropping one, naming what it found, because losing a sequence moves every animation index after it.</p>
+
+<div class="warn">
+Set <code>bAutoPlay</code> on the <b>data asset</b>, never on the material instance. The bake pushes it onto the <code>AutoPlay</code> switch, so a manual override is silently undone.
+</div>
+
+<h3>Reading the results</h3>
+
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Expect</th></tr></thead>
+<tbody>
+<tr><td><code>NumFrames</code></td><td>the sum of every enabled clip's frame count</td></tr>
+<tr><td><code>NumBones</code></td><td>your skeleton's raw bone count, virtual bones excluded</td></tr>
+<tr><td><code>BoneRowsPerFrame</code></td><td><code>1</code>, unless the skeleton is wider than <code>MaxWidth</code></td></tr>
+<tr><td><code>Animations</code></td><td>one entry per enabled clip, contiguous <code>StartFrame</code>/<code>EndFrame</code></td></tr>
+</tbody>
+</table></div>
+
+<p>Texture sizes follow: position and rotation are <code>NumBones</code> &times; <code>NumFrames + 1</code>, the extra row being the reference pose; the weight texture is the welded vertex count wide by two rows.</p>
+
+<h3>Settings worth knowing</h3>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Setting</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Mode</b></td><td>Bone</td><td>per-bone position and rotation plus a static weight texture. Small, and the textures are shareable between meshes on the same skeleton. Discards bone scale</td></tr>
+<tr><td></td><td>Vertex</td><td>per-vertex position and normal. Textures grow with vertex count; keeps scale. Needs <code>MF_VertexAnimation</code> instead</td></tr>
+<tr><td><b>Precision</b></td><td>16 bits</td><td>8 bits quantises position to 256 steps across the whole animation bounds, which stair-steps in slow motion, and caps you at 256 bones</td></tr>
+<tr><td><b>Lightmap Index</b></td><td><code>2</code></td><td>must differ from the data asset's <code>UVChannel</code></td></tr>
+<tr><td><b>Save After Bake</b></td><td>on</td><td>the bake only marks packages dirty. Off means your changes revert on restart</td></tr>
+<tr><td><b>Allow Writing Outside Project</b></td><td>off</td><td>the default material instance slots point at the Anim to Texture plugin's Mannequin instances, in engine content with no source control. Only tick this to deliberately re-bake those</td></tr>
+</tbody>
+</table></div>
+
+<div class="note">
+Morph targets are not baked in either mode, and there is no root motion extraction: move the instance transform yourself.
+</div>
+
+<h2 id="preview">5. Look at it</h2>
+
+<p><b>Flock &rarr; Spawn Preview in Current Level</b>, or place a <b>Flock VAT Preview</b> actor and set <b>Anim Data</b>. It ticks in the viewport, no PIE.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Animation Index</b></td><td><code>0</code></td><td>which clip, indexing the data asset's <code>Animations</code></td></tr>
+<tr><td><b>Loop</b>, <b>Play Rate</b></td><td>on, <code>1</code></td><td></td></tr>
+<tr><td><b>Interpolate</b></td><td>off</td><td>blends the two frames either side, the way a bird with <b>Interpolate Frames</b> does. Needs a material that reads the third custom data float</td></tr>
+<tr><td><b>Material Override</b></td><td>none</td><td>for A/B-ing one material against another without editing either</td></tr>
+<tr><td><b>Random Phase</b></td><td>on</td><td>stagger instances, so a grid does not move in unison</td></tr>
+<tr><td><b>Hold Frame</b></td><td><code>-1</code></td><td>freeze on one frame instead of playing. Negative plays</td></tr>
+<tr><td><b>Hold Frame Is Absolute</b></td><td>off</td><td>address the raw baked frame, ignoring the clip range. The tool for telling a bad bake from a bad frame mapping</td></tr>
+<tr><td><b>Count X / Y</b>, <b>Spacing</b></td><td><code>5, 5, 150</code></td><td>grid size, for eyeballing instancing cost</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="bake.preview"></div>
+
+<div class="tip">
+Dragging the <code>Frame</code> scalar on the material instance is the cheaper check. If the mesh deforms, the textures, the material and the bake are all right, and whatever is wrong is in the species mapping.
+</div>
+
+<p>Check both feature levels before trusting a bake. The vertex shader budget is tighter on ES3.1 than SM5.</p>
+
+<h2>Watching it go wrong</h2>
+
+<p>Watch the Output Log on <b><code>LogAnimToTextureEditor</code></b> during a bake. The plugin's own message log listing is never written to, so a failure there is silent everywhere else.</p>
+
+<p>Right-click the species and <b>Validate Data</b> reports a stale pose match table, a mesh that will not load, and a material instance whose frame count disagrees with the bake.</p>
+
+<p>Bakes are traced (<code>FFlockBake::PrepareAssets</code>, <code>::Bake</code>, <code>::AnimationToTexture</code>), which is useful when a dense mesh takes a while and you want to know which step.</p>
+
+<p><a class="cta" href="placing.html">Put a flock in the level &rarr;</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reactive &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Reactive flocks</h1>
+<p class="lede">Birds the player reads. Their leaving is information, so it has to be legible from a distance and it has to mean something specific.</p>
+
+<div data-shot="reactive.scare"></div>
+
+<h2>Five moves</h2>
+
+<ol>
+<li><b>Put them where they can be seen leaving.</b> Against sky, over a wall, above a rooftop. A flock scattering into foliage tells nobody anything.</li>
+<li><b>Make the break sharp.</b> <b>Proximity Exponent</b> <code>2</code>, tighter <b>Threshold Jitter</b>, higher <b>Contagion Strength</b>. A reactive flock should go in under a second, visibly.</li>
+<li><b>Make them relocate.</b> <b>Orbit Preference</b> <code>0.15</code>. A flock that comes straight back has un-told the player what it told them.</li>
+<li><b>Fire the scare from the animation</b>, not from gameplay code. Where in a swing the noise happens is a property of the animation.</li>
+<li><b>Give it sound.</b> A scatter nobody hears is a scatter half the players miss.</li>
+</ol>
+
+<h2>Numbers to start from</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Reactive</th><th>Default</th></tr></thead>
+<tbody>
+<tr><td><b>Spawn Count</b></td><td><code>10-20</code></td><td><code>5</code></td></tr>
+<tr><td><b>Max Notice Radius</b></td><td><code>1600</code></td><td><code>1200</code></td></tr>
+<tr><td><b>Proximity Exponent</b></td><td><code>2</code></td><td><code>3</code></td></tr>
+<tr><td><b>Flee Threshold</b></td><td><code>0.6</code></td><td><code>0.75</code></td></tr>
+<tr><td><b>Threshold Jitter</b></td><td><code>0.15</code></td><td><code>0.25</code></td></tr>
+<tr><td><b>Contagion Strength</b></td><td><code>2.5</code></td><td><code>1.2</code></td></tr>
+<tr><td><b>Contagion Window</b></td><td><code>0.25</code>s</td><td><code>0.4</code>s</td></tr>
+<tr><td><b>Orbit Preference</b></td><td><code>0.15</code></td><td><code>0.5</code></td></tr>
+<tr><td><b>Takeoff Speed</b></td><td><code>750</code></td><td><code>600</code></td></tr>
+<tr><td><b>Takeoff Up Bias</b></td><td><code>1.4</code></td><td><code>1</code></td></tr>
+<tr><td><b>Landed Cooldown</b></td><td><code>8</code>s</td><td><code>3</code>s</td></tr>
+<tr><td><b>Ambient Airborne Fraction</b></td><td><code>0.05</code></td><td><code>0.15</code></td></tr>
+</tbody>
+</table></div>
+
+<p><b>Ambient Airborne Fraction</b> goes <i>down</i>, which is the opposite of an ambient flock. A bird already circling is one the player cannot tell apart from a bird that just left, and the whole point here is that leaving is the signal.</p>
+
+<div class="important">
+<b>Takeoff Up Bias</b> above <code>1</code> is what makes a scatter read from ground level. The launch direction is that bias blended with directly-away-from-threat; weighted toward up, the flock breaks the skyline instead of spreading sideways behind whatever the player is standing next to.
+</div>
+
+<h2>Firing it deliberately</h2>
+
+<p>A scare is <b>a source with a lifetime</b>, not a command. For <b>Duration</b> it sits in the same list a walking player does and is felt through the same falloff, so birds in the middle break and scatter while the ones at the edge only look round, and none of them do it on the exact frame of the bang.</p>
+
+<h3>From an animation</h3>
+
+<p>Add a <b>Scare Flock</b> notify to the montage - a swing, a landing, a shout - and set <b>Socket Name</b> so it centres on the blade rather than the middle of the character. This is the preferred way in, and it no-ops in preview and editor worlds.</p>
+
+<h3>From code</h3>
+
+<pre><code>#include "System/FlockStatics.h"
+
+UFlockStatics::ScareFlock(this, GetActorLocation(), /*Radius*/ 2000.f);</code></pre>
+
+<p>Nothing to register, nothing to clean up. <code>ScareFlockAtActor</code> is the same centred on an actor. Both are <code>BlueprintCallable</code>.</p>
+
+<h3>Tuning the scare itself</h3>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Radius</b></td><td><code>1500</code> (notify: <code>2000</code>)</td><td>how far it carries. <b>Not</b> capped by <b>Max Notice Radius</b>: naming a radius means that radius</td></tr>
+<tr><td><b>Weight</b></td><td><code>8</code></td><td>how alarming. A walking character is <code>1</code>, so the default is emphatic</td></tr>
+<tr><td><b>Duration</b></td><td><code>0.6</code>s</td><td>how long it keeps alarming. Alarm accumulates over this</td></tr>
+<tr><td><b>Falloff</b></td><td><code>1</code></td><td>linear, deliberately, rather than the species' curve, because a scare should carry to its edge</td></tr>
+</tbody>
+</table></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>You want</th><th>Do</th></tr></thead>
+<tbody>
+<tr><td>A flinch: heads up, nobody leaves</td><td><b>Duration</b> <code>0.15</code>, <b>Weight</b> <code>3</code></td></tr>
+<tr><td>A rout: everything within the radius goes</td><td><b>Duration</b> <code>1.2</code>, <b>Weight</b> <code>12</code></td></tr>
+<tr><td>A tight reaction around one point</td><td><b>Falloff</b> <code>3</code>, larger <b>Radius</b></td></tr>
+<tr><td>A distant flock to answer a near explosion</td><td><b>Falloff</b> <code>1</code>, <b>Radius</b> past the flock. The species cap does not apply</td></tr>
+</tbody>
+</table></div>
+
+<h2>Sources other than the player</h2>
+
+<p>Every <code>APawn</code> already alarms birds, at <b>Auto Source Threat Weight</b> <code>1</code> and <b>Auto Source Radius</b> <code>1200</code>. Beyond that, three ways in:</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Flock Disturbance Component</b></td><td>a rolling boulder, a cat, a thrown object. <b>Threat Weight</b>, <b>Max Radius</b>, and <code>SetDisturbanceEnabled</code> for a source that comes and goes. Always outranks the class list</td></tr>
+<tr><td><code>IFlockDisturbanceInterface</code></td><td>a type your own module owns. <code>IsFlockThreatActive</code> is polled every frame, which is where <i>unnoticed while crouched</i> lives</td></tr>
+<tr><td><code>FlockIgnore</code> actor tag</td><td>opts one actor out of the auto-registered classes entirely</td></tr>
+</table></div>
+
+<div class="tip">
+<code>IsFlockThreatActive</code> is the hook for stealth. Return false while the player is crouched, in cover, or unseen, and the birds stop being a tell - which makes them a tell again the moment the player stands up. This costs nothing: only actors that actually implement the interface are polled.
+</div>
+
+<h2>Making it legible</h2>
+
+<div data-shot="reactive.tell"></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>The player does not notice</td><td>more birds, higher <b>Takeoff Up Bias</b>, a <b>Take Off</b> one-shot, a bed trigger on the cascade</td></tr>
+<tr><td>They notice but not what caused it</td><td><b>Duration</b> shorter so the break is tighter to the event; <b>Threshold Jitter</b> down</td></tr>
+<tr><td>It reads as a scripted cue</td><td><b>Threshold Jitter</b> back up to <code>0.2</code>. A perfectly simultaneous launch is the thing that gives it away</td></tr>
+<tr><td>It fires when it should not</td><td><b>Flee Threshold</b> up, or an interface source that goes inactive</td></tr>
+<tr><td>They come back too soon and undo it</td><td><b>Landed Cooldown</b> up, <b>Min Flight Time</b> up, <b>Orbit Preference</b> down</td></tr>
+</tbody>
+</table></div>
+
+<h2>What it should cost</h2>
+
+<p>A reactive flock is looked at, close, at the moment it matters, so it is the one that can justify spending.</p>
+
+<div class="tw"><table class="free">
+<tr><td><b>Separation on at Near</b></td><td>the default. Birds passing through each other during a scatter is exactly when someone is watching</td></tr>
+<tr><td><b>Interpolate Frames on</b></td><td>if the launch is seen up close. Both halves are needed: the species setting <i>and</i> <b>Interpolate</b> on the material instance. See <a href="blending.html#interpolation">Frame interpolation</a></td></tr>
+<tr><td><b>Two bone influences</b></td><td>pays for the interpolation outright on a small skeleton. Try it before deciding interpolation is too expensive</td></tr>
+<tr><td><b>Take Off VFX</b></td><td>one batched Niagara component per flock, not one per bird. Dust off a ledge sells a launch cheaply</td></tr>
+</table></div>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>The flock is against something they can be seen leaving.</li>
+<li>The whole break happens inside a second, and not on one frame.</li>
+<li>They relocate rather than coming back.</li>
+<li>The scare comes off the animation, on the right frame.</li>
+<li>You can hear it happen with your eyes shut.</li>
+<li>Nothing scares them that should not.</li>
+</ul>
+
+<p><a class="cta" href="species.html">Every parameter &rarr;</a></p>
+
+</main>
+</body>
+</html>

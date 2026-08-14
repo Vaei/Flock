@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tuning behaviour &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Tuning behaviour</h1>
+<p class="lede">What you saw, and the one knob that fixes it. Everything is on the species asset except <b>Orbit Preference</b>, which is also on the volume.</p>
+
+<h2>Symptom to knob</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>What you saw</th><th>Reach for</th></tr></thead>
+<tbody>
+<tr><td>They break from too far away, or you get right on top of them first</td><td><a href="#where-they-break">Proximity Exponent</a></td></tr>
+<tr><td>The whole flock launches on one frame</td><td><a href="#ragged">Threshold Jitter</a></td></tr>
+<tr><td>They leave one at a time, like a queue</td><td><a href="#ragged">Contagion Strength</a>, <b>Contagion Window</b></td></tr>
+<tr><td>They never look up before going, or never go</td><td><a href="#perk">Perk Threshold</a>, <b>Flee Threshold</b></td></tr>
+<tr><td>Everybody comes straight back down; nobody circles</td><td><a href="#split">Orbit Preference</a></td></tr>
+<tr><td>Nothing is ever in the air</td><td><a href="#alive">Ambient Airborne Fraction</a></td></tr>
+<tr><td>A settled flock looks frozen</td><td><a href="#alive">Rest Interval</a>, <b>Walk Interval</b></td></tr>
+<tr><td>A settled flock looks agitated</td><td><a href="#alive">the same, longer</a></td></tr>
+<tr><td>They ping-pong: land, launch, land</td><td><a href="#pingpong">Landed Cooldown</a></td></tr>
+<tr><td>They circle forever and never settle</td><td><a href="#pingpong">Land Search Radius</a>, <b>Max Orbit Time</b>, more perch slots</td></tr>
+<tr><td>The turns look like a slot car</td><td><a href="#air">Bank Scale</a>, <b>Turn Rate Degrees</b>, <b>Jitter Amplitude</b></td></tr>
+<tr><td>The flock is one clump</td><td><a href="#air">Cohesion Weight</a> down, <b>Jitter Amplitude</b> up</td></tr>
+<tr><td>Birds pass through each other in the air</td><td><a href="#air">Separation Max Tier</a></td></tr>
+<tr><td>Clip changes snap</td><td><a href="blending.html">Pose matching</a>, not a behaviour knob</td></tr>
+<tr><td>Birds fly sideways</td><td><a href="species.html#per-bird">Mesh Yaw Offset</a></td></tr>
+</tbody>
+</table></div>
+
+<h2 id="where-they-break">Where they break</h2>
+
+<p><b>Proximity Exponent</b> is the knob, and almost nobody reaches for it first. It decides how sharply alarm falls off with distance, and no change to a radius substitutes for it.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Value</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>1</code></td><td>linear. Something at the very edge of its radius is already mildly alarming, so a heavy source builds enough alarm to flee from a long way off</td></tr>
+<tr><td><code>3</code></td><td>the default. The halfway point contributes an eighth as much, so you can walk most of the way in</td></tr>
+<tr><td><code>6-8</code></td><td>they let you get almost on top of them, then all go at once</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="behaviour.falloff"></div>
+
+<div class="important">
+Raising <b>Max Notice Radius</b> to make them break sooner is the trap. It widens the species' attention, so distant sources start contributing, but a source at the edge of a linear falloff is already contributing - which is why the flock was breaking too early in the first place. Change the exponent.
+</div>
+
+<p><b>Panic Radius</b> (<code>120</code>) is the backstop underneath all of it: inside it a bird flees regardless of what it has accumulated, which is what catches a sprint or a teleport that would otherwise cross the whole falloff in one frame.</p>
+
+<h2 id="perk">Perk and flee</h2>
+
+<p>Two thresholds on one accumulator, both 0..1.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Perk Threshold</b></td><td><code>0.25</code></td><td>alarm before a bird looks up and turns to track</td></tr>
+<tr><td><b>Flee Threshold</b></td><td><code>0.75</code></td><td>alarm before it launches</td></tr>
+<tr><td><b>Perk Release Ratio</b></td><td><code>0.6</code></td><td>fraction of the perk threshold it must fall back to before relaxing. Below 1 so birds do not flicker</td></tr>
+<tr><td><b>Alert Gain</b> / <b>Decay</b></td><td><code>1.5</code> / <code>0.6</code></td><td>how fast alarm builds and fades</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="behaviour.jitter"></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>You want</th><th>Do</th></tr></thead>
+<tbody>
+<tr><td>Birds that watch you the whole way in and then go</td><td>drop <b>Perk Threshold</b> to <code>0.1</code>, leave <b>Flee Threshold</b> alone</td></tr>
+<tr><td>Birds that go without warning</td><td>raise <b>Perk Threshold</b> to just under <b>Flee Threshold</b></td></tr>
+<tr><td>Birds that startle and settle again</td><td>raise <b>Alert Decay</b> to <code>1.5</code>+ and drop <b>Flee Threshold</b></td></tr>
+<tr><td>Birds that will not be scared off a feed</td><td>raise <b>Flee Threshold</b> to <code>0.95</code> and <b>Max Threat Rate</b> down to <code>0.8</code></td></tr>
+</tbody>
+</table></div>
+
+<h2 id="ragged">Ragged, not synchronised</h2>
+
+<p>Two things stop a scatter reading as a switch being thrown, and they pull in opposite directions.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Threshold Jitter</b></td><td><code>0.25</code></td><td>spreads both thresholds across the birds, so they do not reach theirs together</td></tr>
+<tr><td><b>Contagion Strength</b></td><td><code>1.2</code></td><td>how hard one bird leaving alarms its flockmates</td></tr>
+<tr><td><b>Contagion Window</b></td><td><code>0.4</code>s</td><td>how long that lasts</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="behaviour.cascade"></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Use it</th><th>Do not</th></tr></thead>
+<tbody>
+<tr><td>Jitter at <code>0.25</code>+ on any flock over about six birds, always</td><td>Jitter at <code>0</code>, unless you specifically want a single startled animal made of many bodies</td></tr>
+<tr><td>Contagion high with a short window, for a bang: the whole flock goes inside half a second, but visibly in sequence</td><td>Contagion at <code>0</code> with high jitter, which reads as birds ignoring each other</td></tr>
+<tr><td>Contagion low with a long window, for a flock that empties over two or three seconds</td><td>Contagion so high it swamps the jitter, which puts you back at a synchronised launch</td></tr>
+</tbody>
+</table></div>
+
+<div class="note">
+Contagion is two floats in the flock's shared fragment, not a neighbour query. It does not fall off with distance and it does not cross between flocks: every bird in the volume feels the same amount. That is why the window is short.
+</div>
+
+<h2 id="split">Splitting the scatter</h2>
+
+<p><b>Orbit Preference</b> is the chance a spooked bird wheels overhead rather than heading straight back down. On the volume it overrides the species; leave the volume's at <code>-1</code> to take the species' value.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Value</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>0</code></td><td>everyone relocates. Reads as the flock giving up the spot</td></tr>
+<tr><td><code>0.5</code></td><td>the default, and the one that reads as birds. Half wheel, half go, and the flock visibly splits</td></tr>
+<tr><td><code>1</code></td><td>everyone circles and comes back. Reads as the flock waiting you out</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="behaviour.split"></div>
+
+<p>A relocating bird looks for a slot at least <b>Safe Relocate Distance</b> (<code>800</code>) from what spooked it, on the far side of itself, within <b>Land Search Radius</b> (<code>3000</code>). Failing that it orbits anyway - so a flock with nowhere safe to go behaves like <code>Orbit Preference 1</code> whatever you set.</p>
+
+<h2 id="alive">Making a settled flock look alive</h2>
+
+<p>Four things fill the time, on four independent intervals. All are deliberately long.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Rest Interval Min / Max</b></td><td><code>6-18</code>s</td><td>a preen, a head cock, a caw. Needs <a href="species.html#breaks">rest breaks</a> authored</td></tr>
+<tr><td><b>Walk Interval Min / Max</b></td><td><code>9-28</code>s</td><td>a few dawdled steps. Ground birds only; needs a <b>Walk</b> clip</td></tr>
+<tr><td><b>Glance Interval Min / Max</b></td><td><code>2.5-7</code>s</td><td>a look. Uses the turn clips it already has</td></tr>
+<tr><td><b>Restless Interval Min / Max</b></td><td><code>35-110</code>s</td><td>getting up and moving somewhere else, with nothing wrong</td></tr>
+<tr><td><b>Ambient Airborne Fraction</b></td><td><code>0.15</code></td><td>how much of the flock it tries to keep in the air at all times</td></tr>
+</tbody>
+</table></div>
+
+<div class="tip">
+<b>Ambient Airborne Fraction</b> is the one that matters most and is easiest to miss. Left to the restless interval alone, a lap overhead is far too rare to catch: on ten birds it works out at one short orbit every twenty seconds or so. This makes it a standing target, so there is usually something wheeling above a settled flock. Zero switches it off.
+</div>
+
+<div class="warn">
+Shortening the rest and walk intervals is the wrong instinct when a flock looks static. A bird playing a break every three seconds reads as agitated, not busy. Reach for <b>Ambient Airborne Fraction</b> and more perch slots first; the shuffling is meant to be something you catch out of the corner of your eye.
+</div>
+
+<h2 id="pingpong">Landing and staying landed</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Min Flight Time</b></td><td><code>2</code>s</td><td>shortest time airborne before a bird will consider coming down</td></tr>
+<tr><td><b>Landed Cooldown</b></td><td><code>3</code>s</td><td>after touching down, alert decays <b>Refractory Decay Scale</b> (3&times;) faster and the flee bar is raised by <b>Refractory Flee Bonus</b> (<code>0.15</code>)</td></tr>
+<tr><td><b>Max Orbit Time</b></td><td><code>20</code>s</td><td>with no slot free for this long, a bird gives up and drops onto open ground</td></tr>
+</tbody>
+</table></div>
+
+<p>Ping-ponging - land, launch, land - means the thing that spooked them is still there and alert is rebuilding faster than the cooldown sheds it. Raise <b>Landed Cooldown</b> and <b>Refractory Flee Bonus</b>; if the source genuinely never leaves, that flock wants a smaller <b>Max Notice Radius</b> instead.</p>
+
+<h2 id="air">In the air</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Cohesion Weight</b></td><td><code>1</code></td><td>how hard birds are pulled toward the flock's shared attractor</td></tr>
+<tr><td><b>Jitter Amplitude</b> / <b>Frequency</b></td><td><code>180</code> / <code>1.7</code></td><td>per-bird wander, against that pull</td></tr>
+<tr><td><b>Attractor Sweep Degrees</b></td><td><code>70</code>/s</td><td>how fast the attractor goes round, which is the wheeling speed</td></tr>
+<tr><td><b>Turn Rate Degrees</b></td><td><code>160</code>/s</td><td>how hard a bird can turn at all</td></tr>
+<tr><td><b>Bank Scale</b></td><td><code>35</code>&deg;</td><td>ceiling on roll, not the angle. A wide slow orbit leans a little; a hard break lays right over</td></tr>
+<tr><td><b>Bank Interp Speed</b></td><td><code>6</code></td><td>how fast roll reaches what the turn asks for. Low is languid, high snaps</td></tr>
+</tbody>
+</table></div>
+
+<div class="tw"><table class="free">
+<thead><tr><th>You want</th><th>Do</th></tr></thead>
+<tbody>
+<tr><td>A tight murmuration</td><td><b>Cohesion Weight</b> up, <b>Jitter Amplitude</b> down, <b>Cruise Radius</b> down</td></tr>
+<tr><td>Loose scavengers</td><td><b>Cohesion Weight</b> to <code>0.3</code>, <b>Jitter Amplitude</b> to <code>300</code>+</td></tr>
+<tr><td>Gulls riding a thermal</td><td><b>Attractor Sweep Degrees</b> to <code>25</code>, <b>Cruise Speed</b> down, <b>Bank Scale</b> up</td></tr>
+<tr><td>Startled pigeons</td><td><b>Cruise Speed</b> and <b>Turn Rate Degrees</b> up, <b>Orbit Time</b> short</td></tr>
+</tbody>
+</table></div>
+
+<div class="note">
+<b>No bird ever looks at another bird.</b> Cohesion is a pull toward one moving point per flock, which is what makes the whole thing wheel and what makes the cost flat in flock size. The one exception is <b>Separation</b>, which is O(n&sup2;) within a chunk and runs at <b>Near</b> only by default - the further out you let it run, the more it costs and the less anyone can see it.
+</div>
+
+<p>Clip choice in the air follows what the bird is doing: <b>Bank Left</b>/<b>Right</b> past <b>Bank Clip Yaw Rate</b>, else <b>Glide</b> past <b>Glide Descent Rate</b>, else <b>Fly</b>. Both alternatives are optional. Details on <a href="flight.html">Flying</a>.</p>
+
+<div class="tip">
+If a bank clip is only the fly clip with a static roll on it, do not author it. The roll above is continuous, proportional and eases; a clip's is a fixed angle that snaps on and off. Author <b>Bank Left</b>/<b>Right</b> for a genuinely different pose - wings swept, tail fanned - and set <b>Bank Scale</b> to <code>0</code> if you do, so the two do not stack.
+</div>
+
+<h2>Then pick a direction</h2>
+
+<div class="doors">
+<a class="door" href="ambient.html"><b>Ambient</b><span>Birds as atmosphere. Nobody will walk up to them, and the job is to never be noticed as a system.</span></a>
+<a class="door" href="reactive.html"><b>Reactive</b><span>Birds the player reads. Their leaving is information, and it has to be legible from a distance.</span></a>
+</div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>If it is wrong &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>If it is wrong</h1>
+<p class="lede">Symptom to cause. Watch <b><code>LogAnimToTextureEditor</code></b> during a bake - the plugin's own message log listing is never written to - and <code>LogFlock</code> everywhere else.</p>
+
+<h2>Reach for these first</h2>
+
+<pre><code>flock.Debug.Perception 1    bird state, alert level, and the clip and frame it is playing
+flock.Debug.Perception 2    also threat sources
+flock.Debug.Perception 3    also flock bounds, the attractor and blocking volumes in use
+flock.Debug.Slots 1         perch slots: green free, yellow reserved, red occupied
+flock.PoseMatch 0           clips open on their first frame, to A/B the pose match table
+stat flock                  Anim and Render non-zero is the proof a flock is live</code></pre>
+
+<p>Right-click the species &rarr; <b>Validate Data</b> reports a bad mesh, a missing Idle, a stale pose match table and a material frame-count mismatch in one go.</p>
+
+<h2>Nothing renders</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>No birds at all</td><td>No valid <b>Idle</b> mapping, or the mesh failed to load. Both log to <code>LogFlock</code></td></tr>
+<tr><td>Birds but no animation</td><td><code>stat flock</code> shows <code>Anim</code> at zero, so the processors are not running. See <a href="performance.html">Cost</a></td></tr>
+<tr><td>Frozen on the bind pose</td><td><code>NumCustomDataFloats</code> disagrees with <code>AutoPlay</code>. Set <code>bAutoPlay</code> on the <b>data asset</b>, never on the material instance - the bake overwrites it</td></tr>
+<tr><td>Nothing anywhere, no log</td><td><b>Enable Flock</b> off in Project Settings, or a dedicated server</td></tr>
+</tbody>
+</table></div>
+
+<h2>Wrong animation</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>Wrong clip plays</td><td>An <code>Animations</code> index taken from your source list rather than the <b>enabled</b> clips. <code>flock.Debug.Perception 1</code> names the clip on the bird</td></tr>
+<tr><td>Only the newest clips are frozen, older ones fine</td><td>The material instance was not in <b>Bone Material Instances</b> for the re-bake, so its <code>NumFrames</code> still describes the old texture. Everything past it clamps to the last row</td></tr>
+<tr><td>Frozen mid-air on one pose</td><td>A <b>Take Off</b> or <b>Land</b> one-shot that has run out, with no <b>Fly</b> mapped to hand over to</td></tr>
+<tr><td>Every bird moves identically</td><td><b>Random Start Phase</b> off on the Idle mapping</td></tr>
+<tr><td>Clip changes snap</td><td>No pose match table, or it went stale on a re-bake and is being ignored. <b>Flock &rarr; Build Pose Match Table</b></td></tr>
+<tr><td>A clip opens on a pose unrelated to the one it replaced</td><td>The table was built with <b>Velocity Weight</b> at zero, so it matched the shape and not the direction</td></tr>
+<tr><td>Still steppy with Interpolate on</td><td>Only one of the two halves is set. The material instance needs <b>Interpolate</b> <i>and</i> the species needs <b>Interpolate Frames</b></td></tr>
+<tr><td>Birds fly or walk sideways</td><td><b>Mesh Yaw Offset</b> does not match art that faces something other than +X</td></tr>
+<tr><td>One wrong frame per loop</td><td><code>Frame</code> offset past the clip's end, sampling the next clip's first frame. See <a href="api.html#playback">Driving playback yourself</a></td></tr>
+<tr><td>Playback is noise</td><td>sRGB, mips or compression changed on a baked texture. The bake sets these; leave them</td></tr>
+<tr><td>Birds pop at screen edges</td><td>Missing bounds extensions on the static mesh</td></tr>
+</tbody>
+</table></div>
+
+<h2>Wrong place</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>Birds standing in the air</td><td>Nothing under the volume to trace against, or the ground is steeper than <b>Min Ground Normal Z</b>. <code>LogFlock</code> warns</td></tr>
+<tr><td>Birds float or sink</td><td><b>Snap To Ground</b> off puts them on the plane through the volume's <i>centre</i>, not its floor</td></tr>
+<tr><td>Birds fly through a building</td><td>No <b>Flock Blocking Volume</b> around it, or it is further from the flock centre than six others - only that many are kept per flock. <code>flock.Debug.Perception 3</code> draws the ones in use</td></tr>
+<tr><td>Birds hover against a wall</td><td>A perch slot or the flock volume is inside a blocker, so they are being sent where they cannot go</td></tr>
+<tr><td>Birds never finish landing, stuck on the descent clip</td><td>A blocker's <b>Avoid Margin</b> reaches over the approach. It extends past every face, so a volume that visibly clears the perch can still cover the path down to it</td></tr>
+<tr><td>Birds walk into a slope</td><td>Walking never traces. Shorten <b>Walk Radius</b> on uneven ground</td></tr>
+<tr><td>Perch rebuild does nothing</td><td>The perch is inside a Blueprint. <b>Bake All Perches in Level</b> only rebuilds placed instances</td></tr>
+<tr><td>Birds never use the perches</td><td>Every slot is already occupied. Author more slots than birds</td></tr>
+</tbody>
+</table></div>
+
+<h2>Wrong behaviour</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>They break from far too far away</td><td><b>Proximity Exponent</b> too low, not a radius. See <a href="behaviour.html#where-they-break">Tuning behaviour</a></td></tr>
+<tr><td>The whole flock launches on one frame</td><td><b>Threshold Jitter</b> at zero, or <b>Contagion Strength</b> high enough to swamp it</td></tr>
+<tr><td>They leave one at a time</td><td><b>Contagion Strength</b> too low, or the window too short</td></tr>
+<tr><td>Nothing alarms them</td><td>The source is not registered. <code>flock.Debug.Perception 2</code> draws the ones the flock can see</td></tr>
+<tr><td>One actor should not alarm them</td><td><code>FlockIgnore</code> actor tag, or <code>IsFlockThreatActive</code> returning false</td></tr>
+<tr><td>They ping-pong: land, launch, land</td><td>Raise <b>Landed Cooldown</b> and <b>Refractory Flee Bonus</b>. If the source never leaves, lower <b>Max Notice Radius</b></td></tr>
+<tr><td>They circle forever and never settle</td><td>No free slots within <b>Land Search Radius</b>. They give up after <b>Max Orbit Time</b> and land on open ground</td></tr>
+<tr><td>Nothing is ever in the air</td><td><b>Ambient Airborne Fraction</b> at zero, or no <b>Fly</b> clip mapped</td></tr>
+<tr><td>A settled flock looks frozen</td><td>No rest breaks authored, no <b>Walk</b> clip, or <b>Ambient Airborne Fraction</b> too low</td></tr>
+<tr><td>Bank clips never play</td><td><b>Bank Clip Yaw Rate</b> at or above <b>Turn Rate Degrees</b>, which caps it</td></tr>
+<tr><td>Caws cut each other off</td><td><b>Sound Concurrency</b> on the asset steals the voice however many pool slots are free</td></tr>
+</tbody>
+</table></div>
+
+<h2>The bake</h2>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td><i>"Already used by LightMap"</i></td><td>Lightmap index equals the data asset's <code>UVChannel</code>. Move the lightmap to 2</td></tr>
+<tr><td>Prepare refuses, naming sequences</td><td>They are on the data asset but not in the recipe. Add them to <b>Anim Sequences</b>, in the order they already sit in, so no index moves</td></tr>
+<tr><td>Animation runs past its end</td><td><code>SampleRate</code> is not the source clips' frame rate. It is a time step, not a frame count</td></tr>
+<tr><td>Jitter or stair-stepping in slow motion</td><td>8-bit precision quantises position to 256 steps across the whole animation bounds. Use 16-bit</td></tr>
+<tr><td><i>"Too many Bones"</i></td><td>Over 256 bones at 8-bit precision. Use 16-bit, which has no bone limit beyond texture width</td></tr>
+<tr><td>Stray vertices spike</td><td>More than 4 influences per vertex. Only 4 reach the texture, and the reduction can overflow</td></tr>
+<tr><td>Squash and stretch lost</td><td>Bone mode discards bone scale. Use Vertex mode</td></tr>
+<tr><td>Root offset ignored</td><td><code>RootTransform</code> is Vertex mode only</td></tr>
+<tr><td>Wrong UVs sampled</td><td><code>UVChannel</code> of 4+. Only 0-3 work</td></tr>
+<tr><td>Mesh conversion returns null</td><td>Headless without <code>-AllowCommandletRendering</code>, or <code>LODIndex</code> left at <code>-1</code></td></tr>
+<tr><td>Changes revert on restart</td><td>The bake only marks packages dirty. Leave <b>Save After Bake</b> on</td></tr>
+<tr><td>Instance material gets no parameters</td><td>It is not on the static mesh <b>asset's</b> slot, or it is a dynamic instance. Only <code>UMaterialInstanceConstant</code> on the asset is reached</td></tr>
+<tr><td>Bake succeeds, textures unchanged</td><td>Null position or rotation texture. The write result is ignored</td></tr>
+<tr><td>Editor crashes mid-bake</td><td>Null <code>BoneWeightTexture</code>. It hits a bare <code>check()</code></td></tr>
+</tbody>
+</table></div>
+
+<h2>Known limits</h2>
+
+<ul>
+<li>Morph targets are not baked in either mode.</li>
+<li>There is no root motion extraction: move the instance transform yourself.</li>
+<li>Birds have no collision of any kind. <a href="perches.html#blockers">Blocking volumes</a> are the whole of their world awareness.</li>
+<li>Nothing is replicated, and nothing runs on a dedicated server.</li>
+<li>A crash in <code>DebugSetProcessor</code> on tick means a <code>FMassRuntimePipeline</code> held without <code>UPROPERTY</code>.</li>
+</ul>
+
+</main>
+</body>
+</html>

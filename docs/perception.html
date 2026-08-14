@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Being noticed &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Being noticed</h1>
+<p class="lede">What alarms birds, how hard, and how to alarm them on purpose. Every <code>APawn</code> already does, with no per-character setup.</p>
+
+<div data-shot="perception.states"></div>
+
+<h2 id="sources">Four ways in</h2>
+
+<p>Deduped as component &gt; interface &gt; class list, so the more specific one always wins.</p>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Way</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Flock Disturbance Component</b></td><td>on the actor. <b>Threat Weight</b> (<code>1</code>), <b>Max Radius</b> (<code>1200</code>), <b>Enabled</b>, and <code>SetDisturbanceEnabled</code> for a source that comes and goes. Always outranks the class list</td></tr>
+<tr><td><code>IFlockDisturbanceInterface</code></td><td>for a type your own module owns. <code>GetFlockThreatWeight</code> and <code>GetFlockThreatRadius</code> are read once at registration; only <code>IsFlockThreatActive</code> is polled</td></tr>
+<tr><td><b>Auto Register Disturbance Classes</b></td><td>Project Settings &rarr; Game &rarr; Flock. Defaults to <code>APawn</code>, at <b>Auto Source Threat Weight</b> <code>1</code> and <b>Auto Source Radius</b> <code>1200</code></td></tr>
+<tr><td><code>FlockIgnore</code> actor tag</td><td>opts an actor out entirely</td></tr>
+</tbody>
+</table></div>
+
+<div class="tip">
+<b>Position Component</b> on the disturbance component picks which component's position the birds actually track. Needed whenever physics simulates on a child rather than the root: the mesh rolls away while the actor's transform stays where it spawned, so the birds would watch an empty spot.
+</div>
+
+<p><code>IsFlockThreatActive</code> is polled every frame, and only for actors that implement the interface. It is the hook for <i>unnoticed while crouched or hidden</i>.</p>
+
+<div data-shot="perception.sources"></div>
+
+<h2>How alarm builds</h2>
+
+<p>Alarm accumulates per bird from its flock's <b>four strongest threats</b>, and decays when they leave. Per-bird cost is bounded by those four slots, not by how many sources exist in the world, and a flock with none is skipped whole.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Proximity Exponent</b></td><td><code>3</code></td><td><b>how sharply alarm falls off with distance, and the knob for <i>where</i> birds break.</b> At <code>1</code> something at the edge of its radius is already mildly alarming; at <code>3</code> the halfway point contributes an eighth as much. No radius change substitutes for it</td></tr>
+<tr><td><b>Safe Radius</b></td><td><code>150</code></td><td>inside which proximity is already full</td></tr>
+<tr><td><b>Max Notice Radius</b></td><td><code>1200</code></td><td>this species' attention span, capping whatever radius a source claims</td></tr>
+<tr><td><b>Panic Radius</b></td><td><code>120</code></td><td>close enough to flee outright regardless of the accumulator. Catches a sprint or a teleport</td></tr>
+<tr><td><b>Base Weight</b></td><td><code>0.35</code></td><td>how much merely being nearby counts</td></tr>
+<tr><td><b>Closing Weight</b></td><td><code>0.8</code></td><td>how much <i>approaching</i> counts</td></tr>
+<tr><td><b>Speed Weight</b></td><td><code>0.3</code></td><td>how much moving fast counts, whatever the direction</td></tr>
+<tr><td><b>Closing Speed Ref</b></td><td><code>400</code></td><td>closing speed treated as maximally alarming</td></tr>
+<tr><td><b>Speed Ref</b></td><td><code>600</code></td><td>absolute speed treated as maximally alarming</td></tr>
+<tr><td><b>Max Threat Rate</b></td><td><code>2</code></td><td>ceiling on the summed contribution, so a crowd is not instantly terrifying</td></tr>
+<tr><td><b>Alert Gain</b></td><td><code>1.5</code></td><td>how fast alarm builds</td></tr>
+<tr><td><b>Alert Decay</b></td><td><code>0.6</code></td><td>how fast it bleeds away once nothing is alarming</td></tr>
+</tbody>
+</table></div>
+
+<div class="important">
+<b>Closing Weight</b> is more than twice <b>Base Weight</b> by default, which is what makes birds react to being walked <i>at</i> rather than to being near. A player who strafes past a flock at the same distance barely moves it. Lower <b>Closing Weight</b> and raise <b>Base Weight</b> for birds that just do not want anyone nearby.
+</div>
+
+<h2 id="thresholds">Perk and flee</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Perk Threshold</b></td><td><code>0.25</code></td><td>alarm before a bird looks up</td></tr>
+<tr><td><b>Perk Release Ratio</b></td><td><code>0.6</code></td><td>fraction of that it must fall back to before relaxing. Below 1, so birds do not flicker</td></tr>
+<tr><td><b>Flee Threshold</b></td><td><code>0.75</code></td><td>alarm before it launches</td></tr>
+<tr><td><b>Threshold Jitter</b></td><td><code>0.25</code></td><td>spread across birds, so a flock reacts raggedly rather than as one animal</td></tr>
+<tr><td><b>Turn Rate Degrees</b></td><td><code>180</code>/s</td><td>how fast an alert bird turns to face what alarmed it</td></tr>
+<tr><td><b>Turn Deadband Degrees</b></td><td><code>12</code></td><td>yaw error below which the turn clips give way to idle, so they do not chatter</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="perception.perk"></div>
+
+<h2>Contagion</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Contagion Strength</b></td><td><code>1.2</code></td><td>how hard one bird taking off alarms its flockmates</td></tr>
+<tr><td><b>Contagion Window</b></td><td><code>0.4</code>s</td><td>how long that lasts</td></tr>
+</tbody>
+</table></div>
+
+<div class="note">
+Two floats in the flock's shared fragment, not a neighbour query. It does not fall off with distance, it does not cross between flocks, and every bird in the volume feels the same amount. That is why the window is short.
+</div>
+
+<h2>After landing</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Landed Cooldown</b></td><td><code>3</code>s</td><td>how long the refractory period lasts</td></tr>
+<tr><td><b>Refractory Decay Scale</b></td><td><code>3</code></td><td>alert decays this much faster during it</td></tr>
+<tr><td><b>Refractory Flee Bonus</b></td><td><code>0.15</code></td><td>the flee bar is raised by this much during it</td></tr>
+</tbody>
+</table></div>
+
+<p>Together these are what stop a flock bouncing: land, launch, land, with the thing that spooked it still standing there.</p>
+
+<h2 id="scaring">Scaring them</h2>
+
+<p>A scare is <b>a source with a lifetime</b>, not a command. For <b>Duration</b> it sits in the same list a walking player does and is felt through the same falloff, so birds in the middle break and scatter while the ones at the edge only look round, and none of them do it on the exact frame of the bang.</p>
+
+<h3>From an animation</h3>
+
+<p>Add a <b>Scare Flock</b> notify to any montage - a swing, a landing, a shout - plus <b>Socket Name</b> to centre it on a socket rather than the actor.</p>
+
+<p>This is the preferred way in: <i>where</i> in a swing the noise happens is a property of the animation, and only whoever authored it knows where that falls. It no-ops in preview and editor worlds.</p>
+
+<h3>From code</h3>
+
+<pre><code>#include "System/FlockStatics.h"
+
+UFlockStatics::ScareFlock(this, GetActorLocation(), /*Radius*/ 2000.f);</code></pre>
+
+<p>Nothing to register, nothing to clean up. <code>ScareFlockAtActor</code> is the same centred on an actor, read once at the call and not tracked. Both are <code>BlueprintCallable</code>.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Radius</b></td><td><code>1500</code></td><td>how far it carries. <b>Not</b> capped by <b>Max Notice Radius</b>. The notify defaults to <code>2000</code></td></tr>
+<tr><td><b>Weight</b></td><td><code>8</code></td><td>how alarming. Comparable to a source's threat weight, where a walking character is <code>1</code>, so the default is emphatic</td></tr>
+<tr><td><b>Duration</b></td><td><code>0.6</code>s</td><td>how long it keeps alarming. Alarm accumulates over this - shorten it for a flinch, lengthen it for a rout</td></tr>
+<tr><td><b>Falloff</b></td><td><code>1</code></td><td>linear, deliberately rather than the species' curve, because a scare should carry to its edge. Raise it to pull the reaction in tight</td></tr>
+</tbody>
+</table></div>
+
+<h2>Seeing it</h2>
+
+<pre><code>flock.Debug.Perception 1    bird state, alert level, and the clip and frame it is playing
+flock.Debug.Perception 2    also threat sources
+flock.Debug.Perception 3    also flock bounds, the attractor and blocking volumes in use</code></pre>
+
+<p><code>Perception 2</code> is how you tell a source that is not registered from one that is registered and not reaching. If it draws, the birds can see it, and whatever is wrong is in the falloff.</p>
+
+<p><a class="cta" href="flight.html">Once they go &rarr;</a></p>
+
+</main>
+</body>
+</html>

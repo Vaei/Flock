@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Art checklist &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script>
+/* Runs before the shell boots, so docs.js can hand the manifest back once it has one. */
+window.MOB_PAGE_READY = function (ctx) {
+	var host = document.getElementById('checklist');
+	var tally = document.getElementById('tally');
+	var ids = Object.keys(ctx.shots);
+	var byPage = {};
+	ids.forEach(function (id) {
+		var s = ctx.shots[id];
+		var p = s.page || 'unassigned';
+		(byPage[p] = byPage[p] || []).push({ id: id, shot: s });
+	});
+
+	var have = 0, want = 0;
+	var cells = [];
+
+	function files(s) {
+		var f = [];
+		if (s.file) f.push(s.file);
+		if (s.compare) f.push(s.compare);
+		if (s.vid) f.push(s.vid);
+		if (s.poster) f.push(s.poster);
+		return f;
+	}
+
+	Object.keys(byPage).sort().forEach(function (page) {
+		var h = document.createElement('h3');
+		h.textContent = page;
+		host.appendChild(h);
+
+		var wrap = document.createElement('div');
+		wrap.className = 'tw';
+		var t = document.createElement('table');
+		t.className = 'free';
+		t.innerHTML = '<thead><tr><th>State</th><th>Figure</th><th>Files</th></tr></thead>';
+		var tb = document.createElement('tbody');
+
+		byPage[page].forEach(function (e) {
+			var tr = document.createElement('tr');
+			var st = document.createElement('td');
+			st.className = 'state-want';
+			st.textContent = e.shot.vid || e.shot.yt ? 'video' : 'checking';
+			var nm = document.createElement('td');
+			nm.innerHTML = '<code>' + e.id + '</code><br>' + e.shot.cap;
+			var fl = document.createElement('td');
+			fl.innerHTML = files(e.shot).map(function (f) { return '<code>' + f + '</code>'; }).join('<br>') || '-';
+			tr.appendChild(st); tr.appendChild(nm); tr.appendChild(fl);
+			tb.appendChild(tr);
+
+			/* Only a still can be probed without fetch. Videos are listed, never verified. */
+			if (e.shot.file) {
+				var probe = new Image();
+				probe.onload = function () { st.className = 'state-have'; st.textContent = 'have'; have++; count(); };
+				probe.onerror = function () { st.className = 'state-want'; st.textContent = 'wanted'; want++; count(); };
+				probe.src = ctx.imgDir + e.shot.file;
+				cells.push(1);
+			} else if (!e.shot.vid && !e.shot.yt) {
+				st.textContent = 'wanted'; want++;
+			}
+		});
+
+		t.appendChild(tb);
+		wrap.appendChild(t);
+		host.appendChild(wrap);
+	});
+
+	function count() {
+		tally.textContent = have + ' of ' + (have + want) + ' stills in place, ' + want + ' wanted.';
+	}
+	count();
+};
+</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Art checklist</h1>
+<p class="lede">Every figure the documentation declares, and whether the file exists yet.</p>
+
+<p>Drop a file into <code>docs/img/</code> under the name listed and the figure stops being a placeholder. Nothing else changes - no markup, no manifest edit.</p>
+
+<p id="tally" class="lede"></p>
+
+<div class="note">
+Videos cannot be checked from the page, only listed. <code>python docs/check_docs.py</code> checks everything from disk, including which declared figures no page actually places.
+</div>
+
+<div id="checklist"></div>
+
+</main>
+</body>
+</html>

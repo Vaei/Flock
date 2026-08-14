@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flying &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Flying</h1>
+<p class="lede">Takeoff, wheeling, banking, coming back down. <b>No bird ever looks at another bird</b>, which is what makes the cost flat in flock size.</p>
+
+<h2>Takeoff</h2>
+
+<p>Committed: the launch direction is chosen once, from <b>Takeoff Up Bias</b> blended with away-from-threat, then eased to <b>Takeoff Speed</b> over <b>Takeoff Time</b> rather than snapping.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Takeoff Time</b></td><td><code>0.35</code>s</td><td>how long the launch lasts. <b>Not</b> the length of a clip</td></tr>
+<tr><td><b>Takeoff Speed</b></td><td><code>600</code></td><td></td></tr>
+<tr><td><b>Takeoff Up Bias</b></td><td><code>1</code></td><td>how much of the launch is straight up</td></tr>
+<tr><td><b>Takeoff Away Bias</b></td><td><code>0.6</code></td><td>how much is directly away from whatever spooked it</td></tr>
+<tr><td><b>Min Flight Time</b></td><td><code>2</code>s</td><td>shortest time airborne before a bird will consider coming down</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="flight.takeoff"></div>
+
+<p>A <b>Take Off</b> clip that ends before the launch does hands over to <b>Take Off Loop</b>, or to <b>Fly</b>. One that runs <i>longer</i> than the launch plays out in full: a one-shot is never cut mid-pose.</p>
+
+<div class="important">
+<b>Take Off Loop only ever plays if Takeoff Time outlasts the Take Off clip</b>, and the default <code>0.35</code>s launch is shorter than most takeoff animations. If yours matters, raise <b>Takeoff Time</b> past the clip's length.
+</div>
+
+<h2 id="cruise">Wheeling</h2>
+
+<p>Airborne birds steer toward <b>one attractor per flock</b> that sweeps around it. That one moving point is what makes a flock wheel.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Cruise Radius</b></td><td><code>1200</code></td><td>how wide the circuit is</td></tr>
+<tr><td><b>Cruise Ceiling</b></td><td><code>900</code></td><td>how high above the flock</td></tr>
+<tr><td><b>Cruise Speed</b></td><td><code>500</code></td><td></td></tr>
+<tr><td><b>Attractor Sweep Degrees</b></td><td><code>70</code>/s</td><td>how fast the attractor goes round, which is the wheeling speed</td></tr>
+<tr><td><b>Turn Rate Degrees</b></td><td><code>160</code>/s</td><td>hardest turn a bird can make</td></tr>
+<tr><td><b>Cohesion Weight</b></td><td><code>1</code></td><td>how hard birds are pulled toward the attractor</td></tr>
+<tr><td><b>Jitter Amplitude</b></td><td><code>180</code></td><td>per-bird wander, against that pull</td></tr>
+<tr><td><b>Jitter Frequency</b></td><td><code>1.7</code></td><td></td></tr>
+<tr><td><b>Orbit Time Min / Max</b></td><td><code>3-9</code>s</td><td>how long a circling bird stays up</td></tr>
+<tr><td><b>Orbit Preference</b></td><td><code>0.5</code></td><td>chance a spooked bird wheels rather than heading straight back down. The volume can override it</td></tr>
+</tbody>
+</table></div>
+
+<div class="warn">
+The circuit is invisible unless the volume is selected, and the usual surprise is that it reaches through a roof or a cliff the volume itself sits clear of. Birds have no collision, so nothing stops them. Look at it once per flock. See <a href="placing.html#circuit">Placing a flock</a>.
+</div>
+
+<h2 id="separation">Separation</h2>
+
+<p>The one exception to <i>no bird looks at another bird</i>. Airborne birds inside <b>Separation Radius</b> of a flockmate push apart.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Enable Separation</b></td><td>on</td><td></td></tr>
+<tr><td><b>Separation Max Tier</b></td><td>Near</td><td>runs at this tier and every closer one</td></tr>
+<tr><td><b>Separation Radius</b></td><td><code>90</code></td><td></td></tr>
+<tr><td><b>Separation Strength</b></td><td><code>400</code></td><td></td></tr>
+</tbody>
+</table></div>
+
+<p>It is O(n&sup2;) within a chunk, so the further out it is allowed to run the more it costs and the less anyone can see it. It is chunk-local rather than grid-based: a flock's shared-fragment value already partitions its own chunks, so nothing spatial is rebuilt each frame.</p>
+
+<p><code>flock.Separation 0</code> forces it off, <code>1</code> forces it on at every tier, <code>-1</code> (default) leaves it to the species. A cheat, and stripped from Shipping: the species setting is what ships.</p>
+
+<h2 id="banking">Banking</h2>
+
+<p>Birds roll into their turns by the angle it would actually take to hold that turn at their speed, eased in at <b>Bank Interp Speed</b> and capped at <b>Bank Scale</b>. So a wide slow orbit leans a little and a hard break lays right over, with neither tuned for, and the angle is the same at any frame rate.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Bank Scale</b></td><td><code>35</code>&deg;</td><td>a <b>ceiling</b>, not the angle. Lower it to keep birds level, raise it to let a hard turn lay right over. <code>0</code> never rolls</td></tr>
+<tr><td><b>Bank Interp Speed</b></td><td><code>6</code></td><td>how fast roll reaches what the turn asks for</td></tr>
+<tr><td><b>Bank Clip Yaw Rate</b></td><td><code>60</code>&deg;/s</td><td>turning harder than this swaps <b>Fly</b> for the bank clip. Capped by <b>Turn Rate Degrees</b>, so a value at or above that never triggers</td></tr>
+<tr><td><b>Glide Descent Rate</b></td><td><code>60</code></td><td>descending faster than this swaps <b>Fly</b> for <b>Glide</b>. <code>0</code> never glides</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="flight.bank"></div>
+
+<p>A bird only banks from <i>turning</i>. Going down is not turning, and a descent steep enough to have no heading at all holds the heading it had rather than deriving a meaningless one from a near-vertical velocity.</p>
+
+<div class="tip">
+If a bank clip is only the fly clip with a static roll on it, do not author it. The roll above is continuous, proportional and eases; a clip's is a fixed angle that snaps on and off, and cannot ease because it loops. Author <b>Bank Left</b>/<b>Right</b> for a genuinely different pose - wings swept, tail fanned - and set <b>Bank Scale</b> to <code>0</code> if you do, so the two do not stack.
+</div>
+
+<p>Clip choice in the air: <b>Bank Left</b>/<b>Right</b> past <b>Bank Clip Yaw Rate</b>, else <b>Glide</b> past <b>Glide Descent Rate</b>, else <b>Fly</b>. A clip that has started holds until well under the threshold that started it, so nothing chatters at the boundary. Both alternatives are optional and <b>Fly</b> covers whatever is unmapped, so a species with neither never changes clip in the air.</p>
+
+<h2 id="landing">Coming down</h2>
+
+<p>A bird heading straight back looks for a slot at least <b>Safe Relocate Distance</b> from what spooked it and on the far side of itself, within <b>Land Search Radius</b>. Failing that it orbits instead.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Land Search Radius</b></td><td><code>3000</code></td><td>how far a bird will look for somewhere to settle</td></tr>
+<tr><td><b>Safe Relocate Distance</b></td><td><code>800</code></td><td>a relocating bird will not settle within this of whatever spooked it</td></tr>
+<tr><td><b>Land Approach Height</b></td><td><code>250</code></td><td>height above the target it lines up at before dropping</td></tr>
+<tr><td><b>Land Speed</b></td><td><code>350</code></td><td></td></tr>
+<tr><td><b>Land Arrive Distance</b></td><td><code>30</code></td><td>how close to directly above counts as lined up, at twice this</td></tr>
+<tr><td><b>Land Velocity Interp Speed</b></td><td><code>2.5</code></td><td>how quickly a bird that has committed swings onto its descent. Low is a wide unhurried turn; high is abrupt</td></tr>
+<tr><td><b>Max Orbit Time</b></td><td><code>20</code>s</td><td>with no slot free for this long, a bird gives up and drops onto open ground where it started</td></tr>
+</tbody>
+</table></div>
+
+<div data-shot="flight.landing"></div>
+
+<p>Committing eases rather than snaps: both the speed and the direction change through <b>Land Velocity Interp Speed</b>, the turn onto the approach is limited by <b>Turn Rate Degrees</b> like any other, and the bird arrives on the frame it would otherwise overshoot, so it is never placed onto the spot from a distance.</p>
+
+<p>The descent plays <b>Land Loop</b>; <b>Land</b> is the arrival and plays once the feet are down. See <a href="species.html#clips">Clips</a>.</p>
+
+<div class="note">
+<b>A descent is only ever placed, never steered.</b> It is aimed at an authored spot, so turning a bird away from that spot is a bird that hovers beside a blocking volume instead of arriving. The placement stops too once the bird is within <b>Land Arrive Distance</b>, so a volume clipping the spot cannot eject it every frame forever.
+</div>
+
+<h2>Then it stays down</h2>
+
+<p><b>Landed Cooldown</b> keeps it from bouncing straight back up: alert decays <b>Refractory Decay Scale</b> faster and the flee bar is raised by <b>Refractory Flee Bonus</b> while it lasts. See <a href="perception.html">Being noticed</a>.</p>
+
+<p><a class="cta" href="idle.html">What it does once it is down &rarr;</a></p>
+
+</main>
+</body>
+</html>

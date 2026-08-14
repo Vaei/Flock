@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Changelog &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Changelog</h1>
+
+<div class="caution">
+Not officially released. Expect updates without versioning, and a changelog that does not yet reflect them.
+</div>
+
+<h2>1.0.0</h2>
+
+<h3>Simulation</h3>
+
+<ul>
+<li>Mass (ECS) flocks: no actor per bird, one instanced mesh draw per flock, animation baked into textures</li>
+<li>Perception scored on proximity, closing speed and raw speed, with per-bird perk and flee thresholds and jitter</li>
+<li>Contagion, so one bird leaving alarms the rest and a flock cascades instead of switching</li>
+<li>Scatters that split: some relocate away from what frightened them, some wheel overhead and come back</li>
+<li>Idle behaviour: weighted rest breaks, dawdling on open ground, glances using the turn clips</li>
+<li>Voluntary moves between perches, with a standing target for how much of the flock is airborne</li>
+<li>Reserved perch slots, resolved in one game-thread pass so two birds never claim one</li>
+<li>Slots from a box grid, mesh sockets, a spline or typed in by hand, on any actor</li>
+<li>Continuous proportional banking from the turn itself, with optional bank and glide clips</li>
+<li>Blocking volumes, box and sphere, with a steering margin and a hard placement backstop</li>
+<li>Four LOD tiers as tags, so a culled flock's chunks are never visited</li>
+<li>Separation between airborne flockmates, chunk-local, tier-limited</li>
+<li>Nothing replicated, and three separate gates keeping it off a dedicated server</li>
+</ul>
+
+<h3>Animation</h3>
+
+<ul>
+<li>Pose-matched clip changes, baked, so a looping clip opens on a pose near the one it replaced</li>
+<li><code>MF_FlockBoneAnimation</code>, a drop-in for the engine's bone animation function with optional frame interpolation behind a static switch</li>
+<li>Frame interpolation as a species setting with its own LOD tier limit</li>
+<li>Mirrored rest breaks as one entry, so a pair spends one weight between them</li>
+<li>Per-clip play rate, so one clip authored at the wrong speed does not need a re-bake</li>
+</ul>
+
+<h3>Audio and VFX</h3>
+
+<ul>
+<li>One MetaSound bed per flock, fed distance, bird count, mean alert and airborne ratio, with takeoff and land triggers</li>
+<li>Spatialised one-shots from a pool, per clip and per rest break, picked at random from a list</li>
+<li>Sound delay, so a caw lands where the beak opens</li>
+<li>Batched Niagara bursts, one component per flock</li>
+<li><code>OnClipStarted</code>, on the game thread, for everything else</li>
+</ul>
+
+<h3>Tooling</h3>
+
+<ul>
+<li>One bake window that creates the mesh, all three textures and the data asset, validates every texture before starting and re-points every material instance afterwards</li>
+<li>The bake recipe stored on the species, so moving between birds costs nothing</li>
+<li>The lightmap moved off the UV channel the bake needs, which is the most common first-run failure</li>
+<li>Pose match table built at the end of a bake, and rebuildable on its own</li>
+<li>Perch baking for every placed component in a level</li>
+<li>A VAT preview actor that scrubs in the viewport without PIE</li>
+<li>Python entry points for batching or CI</li>
+<li>Flock toolbar menu with draggable placement entries, and a per-developer hide</li>
+<li><code>stat flock</code> and the Insights group from one macro</li>
+<li>Debug draws for perception and slots, and overrides for separation, pose matching and interpolation</li>
+</ul>
+
+</main>
+</body>
+</html>

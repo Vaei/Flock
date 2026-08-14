@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blending &middot; Flock</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/docs.css">
+<script>try{var t=localStorage.getItem('mob-theme');document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){}</script>
+<script src="assets/site.js" defer></script>
+<script src="assets/docs.js" defer></script>
+</head>
+<body>
+<main>
+
+<h1>Blending</h1>
+<p class="lede">One clip never blends into another. A frame is a row of a texture and a clip change is a cut from one row to another, so where that cut lands is the only control there is.</p>
+
+<p>Two things address it, and they are independent. <b>Pose matching</b> picks the frame a clip opens on, which is the clip change. <b>Frame interpolation</b> smooths playback within a clip. Neither blends one clip into the next, and nothing here does.</p>
+
+<h2 id="pose-matching">Pose matching</h2>
+
+<p>Baked, and free at runtime. For every frame of the bake it records which frame of each animation is the closest pose to it, and a bird changing to a <b>looping</b> clip opens it there rather than at its first frame. So a crow leaving <b>Fly</b> at the top of a wingbeat enters <b>Glide</b> with its wings already up.</p>
+
+<div data-shot="blending.posematch"></div>
+
+<p>A <b>one-shot</b> always opens on its first frame. Entering a launch or a touchdown part way through would cut off the half that makes it read, which is worse than the cut it saves.</p>
+
+<h3>Weights</h3>
+
+<div class="tw"><table>
+<thead><tr><th>Property</th><th>Default</th><th></th></tr></thead>
+<tbody>
+<tr><td><b>Position Weight</b></td><td><code>1</code></td><td>a bone being in the wrong place</td></tr>
+<tr><td><b>Rotation Weight</b></td><td><code>1</code></td><td>a bone facing the wrong way. Raise it on a bird whose wings barely translate</td></tr>
+<tr><td><b>Velocity Weight</b></td><td><code>0.5</code></td><td>the bones having to be moving the same way</td></tr>
+</tbody>
+</table></div>
+
+<div class="important">
+<b>Velocity Weight at zero matches the shape alone</b>, which is free to enter a wingbeat at the frame that looks right but travelling the opposite way - and that reads as a stutter rather than a cut. If a clip opens on a pose that looks unrelated to the one it replaced, this is why.
+</div>
+
+<p>All three are relative: each is divided by how much that quantity typically changes over one frame of this bird's own animation, so the same numbers mean the same thing on a crow and on a heron.</p>
+
+<h3>Building it</h3>
+
+<p><b>Build Pose Match Table</b> is on by default and runs at the end of a bone bake. It re-samples every clip, so a bake takes roughly twice as long, and it writes about <b>40 KB</b> onto the species. Nothing at runtime beyond a table lookup.</p>
+
+<p><b>Flock &rarr; Build Pose Match Table</b> rebuilds it on the bake window's species without touching a single texture. That is the one to use after changing the weights.</p>
+
+<div class="caution">
+The table is measured against <b>one bake's frame layout</b>. A re-bake that changes the frame count or the number of animations makes it stale, and it is then <b>ignored</b> rather than used wrongly. <b>Validate Data</b> warns, and so does <code>LogFlock</code> on the first spawn. Rebuild it from the Flock menu.
+</div>
+
+<p><code>flock.PoseMatch 0</code> forces every clip back to its first frame, which is what an A/B against it looks like.</p>
+
+<h2 id="interpolation">Frame interpolation</h2>
+
+<p>Not free, off by default, and it takes <b>both</b> a species setting and a material that reads it. Playback otherwise steps in whole frames at the bake's sample rate.</p>
+
+<div data-shot="blending.interp"></div>
+
+<h3>The material half</h3>
+
+<p>Use <b><code>MF_FlockBoneAnimation</code></b> in place of <code>MF_BoneAnimation</code>. Same inputs, same parameters, one extra: an <b>Interpolate</b> static switch, off by default. Off, it compiles to the same instruction count the engine function does - not similar, the same, because the switch removes the second sample path entirely.</p>
+
+<p>Measured on the crow, 18 bones and 418 vertices:</p>
+
+<div class="tw"><table>
+<thead><tr><th></th><th>Interpolate off</th><th>Interpolate on</th></tr></thead>
+<tbody>
+<tr><td><b>Four</b> bone influences</td><td>956</td><td>1440 (+51%)</td></tr>
+<tr><td><b>Two</b> bone influences</td><td>726</td><td>992</td></tr>
+</tbody>
+</table></div>
+
+<p>The pixel shader does not change; all of it is vertex shader, and roughly eight extra texture fetches per vertex.</p>
+
+<div class="warn">
+<b>That cost is per vertex, so it does not shrink with distance</b> the way a pixel cost does. It is paid on every bird drawn with the material, in the base pass and again in every shadow depth pass. Bird count and triangle count are what multiply it.
+</div>
+
+<div class="tip">
+<b>Two bone influences pays for interpolation.</b> 992 against the 956 you are already paying at four, for the same smoothness plus the interpolation. On an 18-bone bird two influences is very hard to tell apart - most vertices only meaningfully belong to one bone anyway - and <code>NumBoneInfluences</code> on the data asset is the switch. Try that before deciding interpolation is too expensive.
+</div>
+
+<h3>The species half</h3>
+
+<p>Set <b>Interpolate Frames</b> on the species. Each bird then asks for the frame after the one it is on, in the third per-instance custom data float, with the fraction of the way between the two left on the first.</p>
+
+<p><b>Both halves are needed</b>: the setting without the material changes nothing, and the material without the setting is handed two identical frames and pays for the blend anyway.</p>
+
+<p><b>Interpolate Max Tier</b> (<code>Mid</code>) is how far out it is asked for. Past that tier a bird sends whole frames and gets the same image it always did.</p>
+
+<div class="note">
+The tier limit changes what a distant bird <i>looks like</i>, not what it costs. A material static switch is per material, not per instance, so a shader compiled to interpolate does the work for every bird drawn with it. Skipping the work per bird would need a dynamic branch, which means replacing the whole sampling chain with a Custom node.
+</div>
+
+<h3>When to bother</h3>
+
+<p>It buys smoothness at the bake's playback rate and under a slowed <b>Play Rate</b>. It does nothing for a clip change, which is pose matching's job.</p>
+
+<div class="tw"><table class="free">
+<thead><tr><th>Worth it</th><th>Not</th></tr></thead>
+<tbody>
+<tr><td>A slow wingbeat seen up close</td><td>A distant flock. It is a per-vertex cost that does not fall off</td></tr>
+<tr><td>A clip slowed with <b>Play Rate</b> below <code>1</code></td><td>A clip change that snaps. That is pose matching</td></tr>
+<tr><td>A hero bird a player stands next to</td><td>Anything <a href="ambient.html">ambient</a></td></tr>
+</tbody>
+</table></div>
+
+<p><code>flock.Interpolate</code> overrides the species setting: <code>0</code> whole frames, <code>1</code> on at every tier, <code>-1</code> leaves it to the species. It does nothing unless the material reads the third custom data float.</p>
+
+<h2>Neither of these is the problem when</h2>
+
+<div class="tw"><table class="free">
+<tr><td>Animation is steppy <i>and</i> the clip is right</td><td>frame interpolation, if it is close enough to matter</td></tr>
+<tr><td>The pose jumps <i>at</i> a clip change</td><td>pose matching, or a missing table</td></tr>
+<tr><td>The pose jumps and the new clip is wrong</td><td>an <a href="species.html#clips">animation index</a> taken from the source list rather than the enabled clips</td></tr>
+<tr><td>A one-shot freezes mid-air</td><td>no <b>Fly</b> or loop clip mapped to hand over to</td></tr>
+<tr><td>One wrong frame per loop</td><td><code>Frame</code> offset past the clip's end. See <a href="api.html#playback">Driving playback yourself</a></td></tr>
+</table></div>
+
+<p><a class="cta" href="audio.html">Sound and VFX &rarr;</a></p>
+
+</main>
+</body>
+</html>
