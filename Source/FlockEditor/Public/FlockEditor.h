@@ -40,6 +40,9 @@ private:
 	/** Drops somewhere birds will not fly into the open level, sized to be visible and then adjusted. */
 	static void SpawnBlockingVolumeInCurrentLevel(EFlockBlockerShape Shape);
 
+	/** Drops somewhere birds can land into the open level, baked where it lands. */
+	static void SpawnPerchInCurrentLevel();
+
 	/** Re-bakes every perch component in the open level. */
 	static void RebuildAllPerchesInLevel();
 

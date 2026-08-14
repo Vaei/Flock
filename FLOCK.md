@@ -317,6 +317,8 @@ This happens a tick after spawning rather than during it: perch components regis
 
 Add a **Flock Perch Component** to any actor - a fence Blueprint, a rooftop, a tree - and birds will land on it. Slots resolve in the editor and cook into the owning asset; nothing traces at runtime.
 
+Where there is nothing to put one on, drag a **Flock Perch** out of **Place Actors → Flock** or **Flock → Perch**. It is the component on an actor of its own, and it re-bakes every time it is moved or scaled, so dropping it on a ledge is the whole setup.
+
 | **Source** | |
 |---|---|
 | **Box** | a grid over the box, optionally traced down onto whatever is under it |

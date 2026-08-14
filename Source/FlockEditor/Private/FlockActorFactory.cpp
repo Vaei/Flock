@@ -6,6 +6,7 @@
 #include "FlockBakeSettings.h"
 #include "FlockDeveloper.h"
 #include "Actors/FlockBlockingVolume.h"
+#include "Actors/FlockPerch.h"
 #include "Actors/FlockVolume.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
@@ -61,6 +62,18 @@ void UFlockVolumeFactory::PostSpawnActor(UObject* Asset, AActor* NewActor)
 FString UFlockVolumeFactory::GetDefaultActorLabel(UObject* Asset) const
 {
 	return TEXT("FlockVolume");
+}
+
+UFlockPerchFactory::UFlockPerchFactory()
+{
+	NewActorClass = AFlockPerch::StaticClass();
+	bShowInEditorQuickMenu = true;
+	DisplayName = LOCTEXT("FlockPerch", "Flock Perch");
+}
+
+FString UFlockPerchFactory::GetDefaultActorLabel(UObject* Asset) const
+{
+	return TEXT("FlockPerch");
 }
 
 UFlockBlockingVolumeFactory::UFlockBlockingVolumeFactory()

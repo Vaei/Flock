@@ -29,6 +29,19 @@ protected:
 	virtual FString GetDefaultActorLabel(UObject* Asset) const override;
 };
 
+/** Places somewhere birds can land, baked against whatever it was dropped onto. */
+UCLASS()
+class FLOCKEDITOR_API UFlockPerchFactory : public UActorFactory
+{
+	GENERATED_BODY()
+
+public:
+	UFlockPerchFactory();
+
+protected:
+	virtual FString GetDefaultActorLabel(UObject* Asset) const override;
+};
+
 /**
  * Places somewhere birds will not fly. One factory per shape: the shape decides which component is
  * drawn, so it has to be set as the actor is placed rather than chosen afterwards.

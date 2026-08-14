@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Actors/FlockBlockingVolume.h"
+#include "Actors/FlockPerch.h"
 #include "Actors/FlockVolume.h"
 #include "Components/FlockPerchComponent.h"
 #include "EngineUtils.h"
@@ -151,6 +152,45 @@ void FFlockEditorModule::SpawnFlockVolumeInCurrentLevel()
 		: LOCTEXT("SpawnedVolumeNoSpecies",
 			"Spawned a flock volume, but found no species to assign. Set Species on it, or set a Default "
 			"Species in Project Settings."));
+	Info.ExpireDuration = 8.f;
+	FSlateNotificationManager::Get().AddNotification(Info);
+}
+
+void FFlockEditorModule::SpawnPerchInCurrentLevel()
+{
+	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	if (!World)
+	{
+		return;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Name = MakeUniqueObjectName(World->GetCurrentLevel(), AFlockPerch::StaticClass(),
+		TEXT("FlockPerch"));
+	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
+
+	AFlockPerch* Perch = World->SpawnActor<AFlockPerch>(AFlockPerch::StaticClass(),
+		FTransform(GetSpawnLocation()), SpawnParams);
+	if (!Perch)
+	{
+		return;
+	}
+
+	Perch->SetActorLabel(TEXT("FlockPerch"));
+
+	// Bakes against whatever is under where it landed rather than where it was spawned.
+	Perch->PostEditMove(/*bFinished*/ true);
+
+	GEditor->SelectNone(/*bNoteSelectionChange*/ false, /*bDeselectBSPSurfs*/ true);
+	GEditor->SelectActor(Perch, /*bInSelected*/ true, /*bNotify*/ true);
+
+	const int32 Slots = Perch->GetPerch() ? Perch->GetPerch()->BakedSlots.Num() : 0;
+	FNotificationInfo Info(Slots > 0
+		? FText::Format(LOCTEXT("SpawnedPerch", "Spawned a perch with {0} slot(s). Move or scale it and the "
+			"slots re-bake."), Slots)
+		: LOCTEXT("SpawnedPerchNoSlots",
+			"Spawned a perch, but nothing is under it to stand on. Move it over something, or turn off Trace "
+			"Down to keep the slots where the box puts them."));
 	Info.ExpireDuration = 8.f;
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
@@ -319,6 +359,8 @@ void FFlockEditorModule::RegisterPlacement()
 	Placement.RegisterPlaceableItem(FlockPlacementCategory,
 		MakeShared<FPlaceableItem>(*UFlockVolumeFactory::StaticClass(), SortOrder += 10));
 	Placement.RegisterPlaceableItem(FlockPlacementCategory,
+		MakeShared<FPlaceableItem>(*UFlockPerchFactory::StaticClass(), SortOrder += 10));
+	Placement.RegisterPlaceableItem(FlockPlacementCategory,
 		MakeShared<FPlaceableItem>(*UFlockBlockingBoxFactory::StaticClass(), SortOrder += 10));
 	Placement.RegisterPlaceableItem(FlockPlacementCategory,
 		MakeShared<FPlaceableItem>(*UFlockBlockingSphereFactory::StaticClass(), SortOrder += 10));
@@ -421,6 +463,14 @@ TSharedRef<SWidget> FFlockEditorModule::BuildMenu()
 			"volume as a Blueprint per species instead."),
 		FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
 		FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnFlockVolumeInCurrentLevel));
+
+	AddPlaceEntry(Menu, UFlockPerchFactory::StaticClass(),
+		LOCTEXT("SpawnPerch", "Perch"),
+		LOCTEXT("SpawnPerchTip",
+			"Somewhere birds can land, where there is nothing to put a perch component on. Its slots bake onto "
+			"whatever is under it, and re-bake whenever it is moved or scaled."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ClassIcon.SceneComponent")),
+		FExecuteAction::CreateStatic(&FFlockEditorModule::SpawnPerchInCurrentLevel));
 
 	AddPlaceEntry(Menu, UFlockBlockingBoxFactory::StaticClass(),
 		LOCTEXT("SpawnBlockingBox", "Blocking Box"),
