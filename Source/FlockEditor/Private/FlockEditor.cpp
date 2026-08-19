@@ -18,7 +18,6 @@
 #include "FlockActorFactory.h"
 #include "FlockDetails.h"
 #include "FlockEditorLog.h"
-#include "IPlacementModeModule.h"
 #include "FlockEditorStyle.h"
 #include "FlockPoseMatch.h"
 #include "LevelEditorViewport.h"
@@ -38,7 +37,6 @@
 
 DEFINE_LOG_CATEGORY(LogFlockEditor);
 
-static const FName FlockPlacementCategory = TEXT("Flock");
 
 bool FFlockEditorModule::IsToolbarMenuEnabled()
 {
@@ -324,46 +322,6 @@ void FFlockEditorModule::StartupModule()
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFlockEditorModule::RegisterMenus));
 	}
-
-	// The panel builds its items from the actor factories the editor has already instanced, so this
-	// has to wait until the editor exists.
-	if (GEditor)
-	{
-		RegisterPlacement();
-	}
-	else
-	{
-		FCoreDelegates::GetOnPostEngineInit().AddRaw(this, &FFlockEditorModule::RegisterPlacement);
-	}
-}
-
-void FFlockEditorModule::RegisterPlacement()
-{
-	// Get() loads the module; IsAvailable() only reports whether something else has already loaded it,
-	// which nothing has this early, and a category registered into a module that is not there is lost
-	// without a word.
-	IPlacementModeModule& Placement = IPlacementModeModule::Get();
-
-	if (!Placement.RegisterPlacementCategory(FPlacementCategoryInfo(
-			LOCTEXT("PlacementCategory", "Flock"),
-			FSlateIcon(FFlockEditorStyle::GetStyleSetName(), FFlockEditorStyle::GetMenuIconName()),
-			FlockPlacementCategory,
-			TEXT("PMFlock"),
-			45)))
-	{
-		UE_LOG(LogFlockEditor, Warning, TEXT("Could not register the Place Actors category."));
-		return;
-	}
-
-	int32 SortOrder = 0;
-	Placement.RegisterPlaceableItem(FlockPlacementCategory,
-		MakeShared<FPlaceableItem>(*UFlockVolumeFactory::StaticClass(), SortOrder += 10));
-	Placement.RegisterPlaceableItem(FlockPlacementCategory,
-		MakeShared<FPlaceableItem>(*UFlockPerchFactory::StaticClass(), SortOrder += 10));
-	Placement.RegisterPlaceableItem(FlockPlacementCategory,
-		MakeShared<FPlaceableItem>(*UFlockBlockingBoxFactory::StaticClass(), SortOrder += 10));
-	Placement.RegisterPlaceableItem(FlockPlacementCategory,
-		MakeShared<FPlaceableItem>(*UFlockBlockingSphereFactory::StaticClass(), SortOrder += 10));
 }
 
 void FFlockEditorModule::RegisterMenus()
@@ -514,12 +472,7 @@ void FFlockEditorModule::ShutdownModule()
 {
 	FCoreDelegates::GetOnPostEngineInit().RemoveAll(this);
 
-	if (IPlacementModeModule::IsAvailable())
-	{
-		IPlacementModeModule::Get().UnregisterPlacementCategory(FlockPlacementCategory);
-	}
-
-	FFlockEditorStyle::Unregister();
+		FFlockEditorStyle::Unregister();
 
 	if (FPropertyEditorModule* PropertyModule =
 		FModuleManager::GetModulePtr<FPropertyEditorModule>(TEXT("PropertyEditor")))

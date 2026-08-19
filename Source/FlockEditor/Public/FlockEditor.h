@@ -24,7 +24,6 @@ private:
 		const FText& ToolTip, const FSlateIcon& Icon, FExecuteAction OnClicked);
 
 	/** Adds a category to the Place Actors panel, so a volume can be dragged into the level. */
-	void RegisterPlacement();
 
 	/** Drives the toolbar entry's visibility, so toggling the setting hides it without a restart. */
 	static bool IsToolbarMenuEnabled();
